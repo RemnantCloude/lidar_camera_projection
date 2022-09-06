@@ -16,30 +16,28 @@ namespace Projection
 {
     void Projector::initParams()
     {
-        std::string pkg_loc = ros::package::getPath("lidar_camera_projection");
-        std::ifstream infile(pkg_loc + "/config/initial_params.txt");
-        double intrinsic[9];
-        double projection[12];
-        double distortion[5];
-        double RT[16];
+        nh.param<std::string>("camera/topic", camera.TOPIC, "/lbas_image");
+        nh.param<int>("camera/image_width", camera.IMAGE_WIDTH, 1440);
+        nh.param<int>("camera/image_height", camera.IMAGE_HEIGHT, 1080);
+        nh.param<std::vector<double>>("camera/intrinsic", camera.intrinsicV, std::vector<double>());
+        nh.param<std::vector<double>>("camera/projection", camera.projectionV, std::vector<double>());
+        nh.param<std::vector<double>>("camera/distortion", camera.distortionV, std::vector<double>());
+        camera.intrinsicC = cv::Mat(camera.intrinsicV).reshape(0, 3);   // 3*3
+        camera.projectionC = cv::Mat(camera.projectionV).reshape(0, 3); // 3*4
+        camera.distortionC = cv::Mat(camera.distortionV).reshape(0, 1); // 1*5
 
-        for (int i = 0; i < 9; i++)
-            infile >> intrinsic[i];
-        cv::Mat(3, 3, 6, &intrinsic).copyTo(params.intrinsic);
+        nh.param<std::string>("lidar/topic", lidar.TOPIC, "/rslidar_points");
+        nh.param<double>("lidar/filter/xmin", lidar.pc_region.xmin, 0.0);
+        nh.param<double>("lidar/filter/xmax", lidar.pc_region.xmax, 10.0);
+        nh.param<double>("lidar/filter/ymin", lidar.pc_region.ymin, -10.0);
+        nh.param<double>("lidar/filter/ymax", lidar.pc_region.ymax, 10.0);
+        nh.param<double>("lidar/filter/zmin", lidar.pc_region.zmin, -10.0);
+        nh.param<double>("lidar/filter/zmax", lidar.pc_region.zmax, 10.0);
 
-        for (int i = 0; i < 12; i++)
-            infile >> projection[i];
-        cv::Mat(3, 4, 6, &projection).copyTo(params.projection);
+        nh.param<std::vector<double>>("transform/lidar2camera", transform.lidar2cameraV, std::vector<double>());
+        transform.lidar2cameraC = cv::Mat(transform.lidar2cameraV).reshape(0, 4); // 4*4
 
-        for (int i = 0; i < 5; i++)
-            infile >> distortion[i];
-        cv::Mat(5, 1, 6, &distortion).copyTo(params.distortion);
-
-        for (int i = 0; i < 16; i++)
-            infile >> RT[i];
-        cv::Mat(4, 4, 6, &RT).copyTo(params.RT);
-
-        ROS_INFO("Read initial param file successfully. Located at %s", (pkg_loc + "/config/initial_params.txt").c_str());
+        ROS_INFO("Read initial param file successfully.");
     }
 
     void Projector::imageCallback(const sensor_msgs::Image::ConstPtr &img, cv::Mat &undistort_img)
@@ -55,7 +53,7 @@ namespace Projection
             return;
         }
         // 畸变矫正
-        cv::undistort(cv_ptr->image, undistort_img, params.intrinsic, params.distortion);
+        cv::undistort(cv_ptr->image, undistort_img, camera.intrinsicC, camera.distortionC);
     }
 
     void Projector::pointcloudFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
@@ -63,14 +61,14 @@ namespace Projection
         cv::Mat X(4, 1, cv::DataType<double>::type);
         cv::Mat Y(3, 1, cv::DataType<double>::type);
 
-        for (auto point:cloud->points)
+        for (auto point : cloud->points)
         {
             //点云位置过滤
-            if (point.x > pc_region.xmax || point.x < pc_region.xmin || point.y > pc_region.ymax || point.y < pc_region.ymin || point.z > pc_region.zmax || point.z < pc_region.zmin)
+            if (point.x > lidar.pc_region.xmax || point.x < lidar.pc_region.xmin || point.y > lidar.pc_region.ymax || point.y < lidar.pc_region.ymin || point.z > lidar.pc_region.zmax || point.z < lidar.pc_region.zmin)
                 continue;
 
             X = (cv::Mat_<double>(4, 1) << point.x, point.y, point.z, 1);
-            Y = params.projection * params.RT * X;
+            Y = camera.projectionC * transform.lidar2cameraC * X;
 
             cv::Point pt;
             pt.x = Y.at<double>(0, 0) / Y.at<double>(0, 2);
@@ -86,7 +84,7 @@ namespace Projection
 
     void Projector::pointcloudCluster(pcl::PointXYZI point, cv::Point pt)
     {
-        for (auto &target : targets) //BUG
+        for (auto &target : targets)
         {
             if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
             {
@@ -109,14 +107,14 @@ namespace Projection
             cv::putText(img, std::to_string(position.y), cv::Point(box.xmin, box.ymin + 40), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
             cv::putText(img, std::to_string(position.z), cv::Point(box.xmin, box.ymin + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
 
-            for(auto pt : target.pts)
+            for (auto pt : target.pts)
             {
-                //float valDenth = std::sqrt((it->x) * (it->x) + (it->y) * (it->y) + (it->z) * (it->z)); //TODO depth
-                //float maxVal = 10.0;
-                //int red = std::min(255, (int)it->intensity * 4);
+                // float valDenth = std::sqrt((it->x) * (it->x) + (it->y) * (it->y) + (it->z) * (it->z)); //TODO depth
+                // float maxVal = 10.0;
+                // int red = std::min(255, (int)it->intensity * 4);
 
-                //int green = std::min(255, (int)(255 * (1 - abs((valDenth - maxVal) / maxVal))));
-                //cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
+                // int green = std::min(255, (int)(255 * (1 - abs((valDenth - maxVal) / maxVal))));
+                // cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
                 cv::circle(img, pt, 3, cv::Scalar(0, 0, 255), -1);
             }
         }
@@ -144,18 +142,21 @@ namespace Projection
         }
     }
 
-    void Projector::projectionPublish(cv::Mat &img)
+    void Projector::boundingBoxesPositionPublish()
     {
-        cv_bridge::CvImagePtr cv_ptr;
-        ros::Time time = ros::Time::now();
-        cv_ptr->encoding = "bgr8";
-        cv_ptr->header.stamp = time;
-        cv_ptr->header.frame_id = "/project";
-        cv_ptr->image = img;
-        image_publisher.publish(cv_ptr->toImageMsg());
-
-        cv::imshow("projection", img);
-        cv::waitKey(1);
+        geometry_msgs::Point position;
+        float probability = 0.0;
+        for (auto target : targets)
+        {
+            if (target.boundingbox.probability > probability)
+            {
+                position.x = target.position.x;
+                position.y = target.position.y;
+                position.z = target.position.z;
+                probability = target.boundingbox.probability;
+            }
+        }
+        boundingBoxesPosition_pub.publish(position);
     }
 
     void Projector::projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc)
@@ -163,13 +164,16 @@ namespace Projection
         cv::Mat undistort_img;
         imageCallback(img, undistort_img);
 
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>); // TODO no intensity data?
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
         pcl::fromROSMsg(*pc, *cloud);
 
         pointcloudFilter(cloud); //过滤点云并将其聚类
         calculatePointcloudPosition();
         cv::Mat dst = drawPicture(undistort_img);
-        //projectionPublish(dst); //BUG
+
+        boundingBoxesPositionPublish();
+        image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", dst).toImageMsg());
+
         cv::imshow("projection", dst);
         cv::waitKey(1);
     }
@@ -181,7 +185,7 @@ namespace Projection
         s.swap(targets);
 
         auto temp = boxes->bounding_boxes;
-        for (auto t : temp) // TODO
+        for (auto t : temp)
         {
             Target target;
             target.boundingbox.num = t.num;
@@ -195,38 +199,25 @@ namespace Projection
         }
     }
 
-    Projector::Projector()
+    Projector::Projector() : nh("~")
     {
-        ros::NodeHandle nh("~");
-        nh.param<std::string>("camera_topic", camera_topic, "/lbas_image");
-        nh.param<std::string>("lidar_topic", lidar_topic, "/rslidar_points");
-        nh.param<double>("pc_xmin", pc_region.xmin, 0.0);
-        nh.param<double>("pc_xmax", pc_region.xmax, 10.0);
-        nh.param<double>("pc_ymin", pc_region.ymin, -10.0);
-        nh.param<double>("pc_ymax", pc_region.ymax, 10.0);
-        nh.param<double>("pc_zmin", pc_region.zmin, -10.0);
-        nh.param<double>("pc_zmax", pc_region.zmax, 10.0);
-
         initParams();
 
-        mask = cv::Mat::zeros(1080, 1440, CV_8UC1); // TODO
-
         //消息同步
-        message_filters::Subscriber<sensor_msgs::Image> img_sub(nh, camera_topic, 5);
-        message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, lidar_topic, 5);
+        message_filters::Subscriber<sensor_msgs::Image> img_sub(nh, camera.TOPIC, 5);
+        message_filters::Subscriber<sensor_msgs::PointCloud2> pcl_sub(nh, lidar.TOPIC, 5);
 
         typedef message_filters::sync_policies::ApproximateTime<sensor_msgs::Image, sensor_msgs::PointCloud2> MySyncPolicy;
         message_filters::Synchronizer<MySyncPolicy> sync(MySyncPolicy(5), img_sub, pcl_sub);
         sync.registerCallback(boost::bind(&Projector::projectionCallback, this, _1, _2));
 
-        image_transport::ImageTransport imageTransport(nh);
-        image_publisher = imageTransport.advertise("/projected_image", 20);
-
         boundingBoxes_sub = nh.subscribe<yolov5_ros_msgs::BoundingBoxes>("/yolov5/BoundingBoxes", 10, &Projector::yolov5Callback, this);
 
+        image_transport::ImageTransport imageTransport(nh);
+        image_pub = imageTransport.advertise("/projected_image", 20);
+        boundingBoxesPosition_pub = nh.advertise<geometry_msgs::Point>("/projector/position", 1);
+
         ROS_INFO("Projector init completely.");
-        ROS_INFO("camera_topic: %s", camera_topic.c_str());
-        ROS_INFO("lidar_topic: %s", lidar_topic.c_str());
 
         ros::spin();
     }
@@ -236,6 +227,5 @@ int main(int argc, char **argv)
 {
     ros::init(argc, argv, "lidar_camera_projection");
     Projection::Projector Projector;
-    //ros::spin();
     return 0;
 }

@@ -13,35 +13,37 @@
 #include <iostream>
 #include <string>
 #include <vector>
-//#include <numeric>
 #include <algorithm>
-//#include <Eigen/Dense>
 
 #include <ros/ros.h>
 #include <ros/package.h>
 
+#include <Eigen/Core>
+#include <Eigen/Dense>
 #include <opencv2/core.hpp>
+#include <opencv2/core/eigen.hpp>
+#include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
 #include <opencv2/calib3d.hpp>
 
-//#include <termios.h>
 #include <cv_bridge/cv_bridge.h>
 #include <image_transport/image_transport.h>
+
 #include <message_filters/subscriber.h>
 #include <message_filters/time_synchronizer.h>
 #include <message_filters/synchronizer.h>
 #include <message_filters/sync_policies/approximate_time.h>
+
 #include <sensor_msgs/Image.h>
 #include <sensor_msgs/PointCloud2.h>
+#include <geometry_msgs/Point.h>
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
 #include <pcl_ros/transforms.h>
-//#include <tf/tf.h>
-//#include <tf/transform_broadcaster.h>
 
 namespace Projection
 {
@@ -59,16 +61,6 @@ namespace Projection
             std::string Class;
         };
 
-        struct InitialParameters
-        {
-            std::string camera_topic;
-            std::string lidar_topic;
-            cv::Mat intrinsic;
-            cv::Mat projection;
-            cv::Mat distortion;
-            cv::Mat RT;
-        } params;
-
         struct PointcloudFilter
         {
             double xmin;
@@ -77,7 +69,35 @@ namespace Projection
             double ymax;
             double zmin;
             double zmax;
-        } pc_region;
+        };
+
+        struct Camera
+        {
+            std::string TOPIC;
+            int IMAGE_WIDTH;
+            int IMAGE_HEIGHT;
+            std::vector<double> intrinsicV;
+            std::vector<double> projectionV;
+            std::vector<double> distortionV;
+            // Eigen::Matrix3d intrinsicE;
+            // Eigen::Matrix3d projectionE;
+            // Eigen::Matrix3d distortionE;
+            cv::Mat intrinsicC;
+            cv::Mat projectionC;
+            cv::Mat distortionC;
+        } camera;
+
+        struct Lidar
+        {
+            std::string TOPIC;
+            struct PointcloudFilter pc_region;
+        } lidar;
+
+        struct Transform
+        {
+            std::vector<double> lidar2cameraV;
+            cv::Mat lidar2cameraC;
+        } transform;
 
         struct Target
         {
@@ -87,13 +107,11 @@ namespace Projection
             pcl::PointXYZ position;             // 几何中心点
         };
 
-        std::string camera_topic;
-        std::string lidar_topic;
-        image_transport::Publisher image_publisher;
+        ros::NodeHandle nh;
         ros::Subscriber boundingBoxes_sub;
-        // tf::TransformBroadcaster tr_br;
+        image_transport::Publisher image_pub;
+        ros::Publisher boundingBoxesPosition_pub;
 
-        cv::Mat mask;
         std::vector<Target> targets; // 检测到的目标
 
         void initParams();
@@ -102,7 +120,7 @@ namespace Projection
         void calculatePointcloudPosition();
         void pointcloudFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         cv::Mat drawPicture(cv::Mat &img);
-        void projectionPublish(cv::Mat &img);
+        void boundingBoxesPositionPublish();
         void projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc);
         void yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes);
 
