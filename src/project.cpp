@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 21:44:30
+ * @LastEditTime: 2022-09-26 22:03:43
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -122,7 +122,7 @@ namespace Projection
             cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
 
             //像素位置过滤
-            if (pt.x > 0 || pt.x <= camera.IMAGE_WIDTH || pt.y > 0 || pt.y <= camera.IMAGE_HEIGHT)
+            if (pt.x > 0 && pt.x <= camera.IMAGE_WIDTH && pt.y > 0 && pt.y <= camera.IMAGE_HEIGHT)
                 temp_cloud->points.push_back(point);
         }
 
@@ -274,6 +274,14 @@ namespace Projection
         }
     }
 
+    void Projector::cloudInImagePublish(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    {
+        sensor_msgs::PointCloud2 cloud_publish;
+        pcl::toROSMsg(*cloud, cloud_publish);
+        cloud_publish.header.frame_id = lidar.FRAME_ID;
+        cloud_in_image_pub.publish(cloud_publish);
+    }
+
     // void Projector::boundingBoxesPositionPublish()
     // {
     //     geometry_msgs::Point position;
@@ -364,6 +372,7 @@ namespace Projection
         }
 
         projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", dst).toImageMsg());
+        cloudInImagePublish(cloud_in_image);
 
         cv::imshow("projection", dst);
         cv::waitKey(1);
@@ -407,7 +416,8 @@ namespace Projection
             yolov5_boundingBoxes_sub = nh.subscribe<yolov5_ros_msgs::BoundingBoxes>("/yolov5/BoundingBoxes", 10, &Projector::yolov5Callback, this);
 
         image_transport::ImageTransport imageTransport(nh);
-        projected_image_pub = imageTransport.advertise("/projected_image", 20);
+        projected_image_pub = imageTransport.advertise("/projector/projected_image", 1);
+        cloud_in_image_pub = nh.advertise<sensor_msgs::PointCloud2>("/projector/cloud_in_image", 1);
         lidar_boundingBoxesArray_pub = nh.advertise<geometry_msgs::Point>("/projector/position", 1);
 
         ROS_INFO("Projector init completely.");

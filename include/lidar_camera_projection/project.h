@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 21:48:51
+ * @LastEditTime: 2022-09-26 21:57:14
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -138,6 +138,7 @@ namespace Projection
         ros::Subscriber yolov5_boundingBoxes_sub;
 
         image_transport::Publisher projected_image_pub;
+        ros::Publisher cloud_in_image_pub;
         ros::Publisher lidar_boundingBoxesPosition_pub;
         ros::Publisher lidar_boundingBoxesArray_pub;
 
@@ -165,7 +166,7 @@ namespace Projection
         cv::Mat drawPictureFromCluster(cv::Mat &img, std::vector<pcl::PointIndices> cluster_indices);
 
         void boundingBoxArrayPublish();
-        void projectedPointcloudPublish();
+        void cloudInImagePublish(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
 
         void imageCallback(const sensor_msgs::Image::ConstPtr &img);
         void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc);

@@ -42,11 +42,11 @@ lidar:
   frame_id: rslidar
   filter:
     xmin: 0.0
-    xmax: 10.0
-    ymin: -10.0
-    ymax: 10.0
-    zmin: -10.0
-    zmax: 10.0
+    xmax: 100.0
+    ymin: -100.0
+    ymax: 100.0
+    zmin: -100.0
+    zmax: 100.0
   ec_extraction:
     cluster_tolerance: 0.1
     min_cluster_size: 20
