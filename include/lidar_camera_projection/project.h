@@ -2,15 +2,15 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 17:29:54
+ * @LastEditTime: 2022-09-26 21:48:51
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
  * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
  */
 
-#ifndef _PROJECTION_H_
-#define _PROJECTION_H_
+#ifndef _PROJECT_H_
+#define _PROJECT_H_
 
 #include "yolov5_ros_msgs/BoundingBox.h"
 #include "yolov5_ros_msgs/BoundingBoxes.h"
@@ -54,27 +54,6 @@ namespace Projection
     class Projector
     {
     private:
-        struct YOLOV5BoundingBox
-        {
-            float probability;
-            int xmin;
-            int ymin;
-            int xmax;
-            int ymax;
-            int num;
-            std::string Class;
-        };
-
-        struct PointcloudFilter
-        {
-            double xmin;
-            double xmax;
-            double ymin;
-            double ymax;
-            double zmin;
-            double zmax;
-        };
-
         struct Flag
         {
             bool IF_SHOW_TIME;
@@ -93,19 +72,27 @@ namespace Projection
             cv::Mat distortionC;
         } camera;
 
-        struct EuclideanClusterParams
-        {
-            double cluster_tolerance;
-            int min_cluster_size;
-            int max_cluster_size;
-        } ec_cluster_params;
-
         struct Lidar
         {
             std::string TOPIC;
             std::string FRAME_ID;
-            struct PointcloudFilter pc_region;
-            struct EuclideanClusterParams ec_cluster_params;
+
+            struct PointcloudFilterParams
+            {
+                double xmin;
+                double xmax;
+                double ymin;
+                double ymax;
+                double zmin;
+                double zmax;
+            } pc_region;
+
+            struct EuclideanClusterParams
+            {
+                double cluster_tolerance;
+                int min_cluster_size;
+                int max_cluster_size;
+            } ec_cluster_params;
         } lidar;
 
         struct Transform
@@ -117,7 +104,17 @@ namespace Projection
 
         struct YOLOV5Target
         {
-            struct YOLOV5BoundingBox boundingbox; // yolov5候选框
+            struct YOLOV5BoundingBox
+            {
+                float probability;
+                int xmin;
+                int ymin;
+                int xmax;
+                int ymax;
+                int num;
+                std::string Class;
+            } boundingbox; // yolov5识别框
+
             pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr;
             std::vector<pcl::PointXYZI> points;
             std::vector<cv::Point> pts; // 投影点
@@ -145,15 +142,19 @@ namespace Projection
         ros::Publisher lidar_boundingBoxesArray_pub;
 
         cv::Mat undistort_img;
-        cv::Mat dst;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_from_lidar;
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in_image;
         std::vector<YOLOV5Target> yolov5_targets; // YOLOV5检测到的目标
+        // std::vector<Point> real_pointcloud;
+        // std::vector<Point> real_pointcloud_no_ground;
+        // std::vector<Point> virtual_pointcloud;
 
         void initParamsFromYAML();
         void initClassMember();
-        void imageCallback(const sensor_msgs::Image::ConstPtr &img);
-        void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud);
-        void pointcloudFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+        void pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+        void pointcloudImageFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+        void pointcloudGroundFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+        // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
         void pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         void pointcloudEuclideanClusterForYOLOV5();
         std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr);
@@ -164,7 +165,10 @@ namespace Projection
         cv::Mat drawPictureFromCluster(cv::Mat &img, std::vector<pcl::PointIndices> cluster_indices);
 
         void boundingBoxArrayPublish();
+        void projectedPointcloudPublish();
 
+        void imageCallback(const sensor_msgs::Image::ConstPtr &img);
+        void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc);
         void projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc);
         void yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes);
 

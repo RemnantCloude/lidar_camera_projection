@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 18:37:19
+ * @LastEditTime: 2022-09-26 21:43:43
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -28,4 +28,6 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 
 ## Changelog
 
-1. 设置3种模式，包括直接投影，yolov5识别框投影，点云聚类投影
+1. 设置3种模式，包括直接投影，yolov5识别框投影，点云聚类投影。
+2. 手动滤波改为pcl直通滤波，耗时从31ms降为22ms。
+3. 修复bug，调整类成员。

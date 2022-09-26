@@ -2,14 +2,13 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 18:35:26
+ * @LastEditTime: 2022-09-26 21:44:30
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
  * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
  */
 
-/* Include **********************************************/
 #include "lidar_camera_projection/project.h"
 #include "lidar_camera_projection/algorithm.h"
 
@@ -58,6 +57,8 @@ namespace Projection
 
     void Projector::initClassMember()
     {
+        cloud_from_lidar = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
+        cloud_in_image = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
         // lidar.extractor.setClusterTolerance(lidar.ec_cluster_params.cluster_tolerance);
         // lidar.extractor.setMinClusterSize(lidar.ec_cluster_params.min_cluster_size);
         // lidar.extractor.setMaxClusterSize(lidar.ec_cluster_params.max_cluster_size);
@@ -74,30 +75,58 @@ namespace Projection
         catch (cv_bridge::Exception &e)
         {
             ROS_ERROR("cv_bridge exception: %s", e.what());
-            return;
+            ros::shutdown();
+        }
+
+        if (cv_ptr->image.size().width != camera.IMAGE_WIDTH || cv_ptr->image.size().height != camera.IMAGE_HEIGHT)
+        {
+            ROS_ERROR("Get wrong size of image from <params.yaml>. The received images size is (%d,%d).", cv_ptr->image.size().width, cv_ptr->image.size().height);
+            ros::shutdown();
         }
         // 畸变矫正
         cv::undistort(cv_ptr->image, undistort_img, camera.intrinsicC, camera.distortionC);
     }
 
-    void Projector::pointcloudFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    void Projector::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc)
+    {
+        pcl::fromROSMsg(*pc, *cloud_from_lidar);
+    }
+
+    void Projector::pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    {
+        pcl::PassThrough<pcl::PointXYZI> passthrough;
+        passthrough.setKeepOrganized(false);
+
+        passthrough.setInputCloud(cloud);
+        passthrough.setFilterFieldName("x");
+        passthrough.setFilterLimits(lidar.pc_region.xmin, lidar.pc_region.xmax);
+        passthrough.filter(*cloud);
+
+        passthrough.setInputCloud(cloud);
+        passthrough.setFilterFieldName("y");
+        passthrough.setFilterLimits(lidar.pc_region.ymin, lidar.pc_region.ymax);
+        passthrough.filter(*cloud);
+
+        passthrough.setInputCloud(cloud);
+        passthrough.setFilterFieldName("z");
+        passthrough.setFilterLimits(lidar.pc_region.zmin, lidar.pc_region.zmax);
+        passthrough.filter(*cloud);
+    }
+
+    void Projector::pointcloudImageFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
     {
         pcl::PointCloud<pcl::PointXYZI>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZI>);
 
         for (auto point : cloud->points)
         {
-            //点云位置过滤
-            if (point.x > lidar.pc_region.xmax || point.x < lidar.pc_region.xmin || point.y > lidar.pc_region.ymax || point.y < lidar.pc_region.ymin || point.z > lidar.pc_region.zmax || point.z < lidar.pc_region.zmin)
-                continue;
-
             cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
 
             //像素位置过滤
-            if (pt.x > 0 || pt.x <= 1440 || pt.y > 0 || pt.y <= 1080)
+            if (pt.x > 0 || pt.x <= camera.IMAGE_WIDTH || pt.y > 0 || pt.y <= camera.IMAGE_HEIGHT)
                 temp_cloud->points.push_back(point);
         }
 
-        cloud_in_image = temp_cloud; // TEST 局部变量指针
+        cloud_in_image = temp_cloud;
     }
 
     void Projector::pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
@@ -111,21 +140,28 @@ namespace Projection
                 {
                     target.points.push_back(point);
                     target.pts.push_back(pt);
-                    return;
                 }
             }
         }
     }
 
+    void Projector::pointcloudGroundFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    {
+    }
+
+    // void Projector::virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc)
+    // {
+    // }
+
     std::vector<pcl::PointIndices> Projector::pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr)
     {
+        std::vector<pcl::PointIndices> cluster_indices;
         if (pc_Ptr->points.empty() == true)
-            ROS_ERROR("Empty pointcloud");
+            return cluster_indices;
 
         pcl::search::KdTree<pcl::PointXYZI>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZI>);
         kd_tree->setInputCloud(pc_Ptr);
 
-        std::vector<pcl::PointIndices> cluster_indices;
         pcl::EuclideanClusterExtraction<pcl::PointXYZI> extractor;
 
         extractor.setClusterTolerance(lidar.ec_cluster_params.cluster_tolerance);
@@ -183,9 +219,9 @@ namespace Projection
             auto position = target.position;
             cv::rectangle(img, cv::Rect(cv::Point(box.xmax, box.ymax), cv::Point(box.xmin, box.ymin)), cv::Scalar(255, 255, 255));
             cv::putText(img, box.Class, cv::Point(box.xmin, box.ymin - 10), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
-            cv::putText(img, std::to_string(position.x), cv::Point(box.xmin, box.ymin + 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
-            cv::putText(img, std::to_string(position.y), cv::Point(box.xmin, box.ymin + 40), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
-            cv::putText(img, std::to_string(position.z), cv::Point(box.xmin, box.ymin + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+            cv::putText(img, "x:" + std::to_string(position.x), cv::Point(box.xmin, box.ymin + 20), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+            cv::putText(img, "y:" + std::to_string(position.y), cv::Point(box.xmin, box.ymin + 40), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
+            cv::putText(img, "z:" + std::to_string(position.z), cv::Point(box.xmin, box.ymin + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
 
             for (auto pt : target.pts)
             {
@@ -287,12 +323,13 @@ namespace Projection
 
     void Projector::projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc)
     {
+        cv::Mat dst;
+
         imageCallback(img);
+        pointcloudCallback(pc);
 
-        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud(new pcl::PointCloud<pcl::PointXYZI>);
-        pcl::fromROSMsg(*pc, *cloud);
-
-        pointcloudFilter(cloud); //过滤点云
+        pointcloudPassThroughFilter(cloud_from_lidar); // 位置过滤
+        pointcloudImageFilter(cloud_from_lidar);       // 像素位置过滤
         switch (mode)
         {
         case 0: // vinilla
@@ -303,14 +340,22 @@ namespace Projection
         case 1: // yolov5
         {
             pointcloudYOLOV5BoundingBoxFilter(cloud_in_image);
-            // pointcloudEuclideanClusterForYOLOV5();
+            pointcloudEuclideanClusterForYOLOV5();
+            pointcloudWeightCenterPositionCalculation();
             dst = drawPictureFromYOLOV5(undistort_img);
             break;
         }
-        case 2: // euclideancluster
+        case 2: // euclidean cluster
         {
             auto cluster_indices = pointcloudEuclideanCluster(cloud_in_image);
             dst = drawPictureFromCluster(undistort_img, cluster_indices);
+            break;
+        }
+        case 3: // virtual point
+        {
+            // pointcloudGroundFilter(cloud_from_lidar); // 地面点过滤
+            // virtualPointCloudGenerate(undistort_img, real_pointcloud, virtual_pointcloud);
+            break;
         }
         default:
         {
@@ -367,7 +412,8 @@ namespace Projection
 
         ROS_INFO("Projector init completely.");
 
-        ros::spin();
+        ros::MultiThreadedSpinner spinner(2);
+        spinner.spin();
     }
 }
 
