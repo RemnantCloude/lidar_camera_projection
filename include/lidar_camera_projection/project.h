@@ -1,7 +1,12 @@
 /*
- *@author: Cloude Remnant
- *@date: 2022-09-03
- *@description:
+ * @Author: RemnantCloude remnantcloude@gmail.com
+ * @Date: 2022-09-10 09:45:11
+ * @LastEditors: RemnantCloude remnantcloude@gmail.com
+ * @LastEditTime: 2022-09-26 17:29:54
+ * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
+ * @Description:
+ *
+ * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
  */
 
 #ifndef _PROJECTION_H_
@@ -18,10 +23,7 @@
 #include <ros/ros.h>
 #include <ros/package.h>
 
-#include <Eigen/Core>
-#include <Eigen/Dense>
 #include <opencv2/core.hpp>
-#include <opencv2/core/eigen.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/highgui.hpp>
 #include <opencv2/imgproc.hpp>
@@ -41,8 +43,10 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl_conversions/pcl_conversions.h>
 #include <pcl/filters/passthrough.h>
+#include <pcl/features/moment_of_inertia_estimation.h>
+#include <pcl/segmentation/extract_clusters.h>
+#include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/transforms.h>
 
 namespace Projection
@@ -50,7 +54,7 @@ namespace Projection
     class Projector
     {
     private:
-        struct BoundingBox
+        struct YOLOV5BoundingBox
         {
             float probability;
             int xmin;
@@ -71,6 +75,11 @@ namespace Projection
             double zmax;
         };
 
+        struct Flag
+        {
+            bool IF_SHOW_TIME;
+        } flag;
+
         struct Camera
         {
             std::string TOPIC;
@@ -79,48 +88,83 @@ namespace Projection
             std::vector<double> intrinsicV;
             std::vector<double> projectionV;
             std::vector<double> distortionV;
-            // Eigen::Matrix3d intrinsicE;
-            // Eigen::Matrix3d projectionE;
-            // Eigen::Matrix3d distortionE;
             cv::Mat intrinsicC;
             cv::Mat projectionC;
             cv::Mat distortionC;
         } camera;
 
+        struct EuclideanClusterParams
+        {
+            double cluster_tolerance;
+            int min_cluster_size;
+            int max_cluster_size;
+        } ec_cluster_params;
+
         struct Lidar
         {
             std::string TOPIC;
+            std::string FRAME_ID;
             struct PointcloudFilter pc_region;
+            struct EuclideanClusterParams ec_cluster_params;
         } lidar;
 
         struct Transform
         {
             std::vector<double> lidar2cameraV;
             cv::Mat lidar2cameraC;
+            cv::Mat lidar2imageC;
         } transform;
 
-        struct Target
+        struct YOLOV5Target
         {
-            struct BoundingBox boundingbox;     // yolov5候选框
-            std::vector<pcl::PointXYZI> points; // 点云
-            std::vector<cv::Point> pts;         // 投影点
-            pcl::PointXYZ position;             // 几何中心点
+            struct YOLOV5BoundingBox boundingbox; // yolov5候选框
+            pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr;
+            std::vector<pcl::PointXYZI> points;
+            std::vector<cv::Point> pts; // 投影点
+            std::vector<float> depths;  // 距离
+            pcl::PointXYZ position;     // 几何中心点
+            pcl::PointXYZI min_point_AABB;
+            pcl::PointXYZI max_point_AABB;
+
+            YOLOV5Target()
+            {
+                this->pc_Ptr.reset(new pcl::PointCloud<pcl::PointXYZI>());
+            };
         };
 
+        int mode;
+
         ros::NodeHandle nh;
-        ros::Subscriber boundingBoxes_sub;
-        image_transport::Publisher image_pub;
-        ros::Publisher boundingBoxesPosition_pub;
 
-        std::vector<Target> targets; // 检测到的目标
+        ros::Subscriber image_sub;
+        ros::Subscriber pointcloud_sub;
+        ros::Subscriber yolov5_boundingBoxes_sub;
 
-        void initParams();
-        void imageCallback(const sensor_msgs::Image::ConstPtr &img, cv::Mat &undistort_img);
-        void pointcloudCluster(pcl::PointXYZI point, cv::Point pt);
-        void calculatePointcloudPosition();
+        image_transport::Publisher projected_image_pub;
+        ros::Publisher lidar_boundingBoxesPosition_pub;
+        ros::Publisher lidar_boundingBoxesArray_pub;
+
+        cv::Mat undistort_img;
+        cv::Mat dst;
+        pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in_image;
+        std::vector<YOLOV5Target> yolov5_targets; // YOLOV5检测到的目标
+
+        void initParamsFromYAML();
+        void initClassMember();
+        void imageCallback(const sensor_msgs::Image::ConstPtr &img);
+        void pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc, pcl::PointCloud<pcl::PointXYZI>::Ptr &cloud);
         void pointcloudFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
-        cv::Mat drawPicture(cv::Mat &img);
-        void boundingBoxesPositionPublish();
+        void pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
+        void pointcloudEuclideanClusterForYOLOV5();
+        std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr);
+        void pointcloudWeightCenterPositionCalculation();
+        // void pointcloudWeightAABBPositionCalculation();
+        cv::Mat drawPictureFromPointCloud(cv::Mat &img);
+        cv::Mat drawPictureFromYOLOV5(cv::Mat &img);
+        cv::Mat drawPictureFromCluster(cv::Mat &img, std::vector<pcl::PointIndices> cluster_indices);
+
+        void boundingBoxArrayPublish();
+
         void projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc);
         void yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes);
 
