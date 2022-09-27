@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 22:03:43
+ * @LastEditTime: 2022-09-27 09:50:51
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -11,6 +11,7 @@
 
 #include "lidar_camera_projection/project.h"
 #include "lidar_camera_projection/algorithm.h"
+#include "lidar_camera_projection/pointcloud_process.h"
 
 #include <typeinfo>
 
@@ -59,10 +60,6 @@ namespace Projection
     {
         cloud_from_lidar = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
         cloud_in_image = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
-        // lidar.extractor.setClusterTolerance(lidar.ec_cluster_params.cluster_tolerance);
-        // lidar.extractor.setMinClusterSize(lidar.ec_cluster_params.min_cluster_size);
-        // lidar.extractor.setMaxClusterSize(lidar.ec_cluster_params.max_cluster_size);
-        // lidar.extractor.setSearchMethod(lidar.kd_tree);
     }
 
     void Projector::imageCallback(const sensor_msgs::Image::ConstPtr &img)
@@ -90,27 +87,6 @@ namespace Projection
     void Projector::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc)
     {
         pcl::fromROSMsg(*pc, *cloud_from_lidar);
-    }
-
-    void Projector::pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
-    {
-        pcl::PassThrough<pcl::PointXYZI> passthrough;
-        passthrough.setKeepOrganized(false);
-
-        passthrough.setInputCloud(cloud);
-        passthrough.setFilterFieldName("x");
-        passthrough.setFilterLimits(lidar.pc_region.xmin, lidar.pc_region.xmax);
-        passthrough.filter(*cloud);
-
-        passthrough.setInputCloud(cloud);
-        passthrough.setFilterFieldName("y");
-        passthrough.setFilterLimits(lidar.pc_region.ymin, lidar.pc_region.ymax);
-        passthrough.filter(*cloud);
-
-        passthrough.setInputCloud(cloud);
-        passthrough.setFilterFieldName("z");
-        passthrough.setFilterLimits(lidar.pc_region.zmin, lidar.pc_region.zmax);
-        passthrough.filter(*cloud);
     }
 
     void Projector::pointcloudImageFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
@@ -153,33 +129,12 @@ namespace Projection
     // {
     // }
 
-    std::vector<pcl::PointIndices> Projector::pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr)
-    {
-        std::vector<pcl::PointIndices> cluster_indices;
-        if (pc_Ptr->points.empty() == true)
-            return cluster_indices;
-
-        pcl::search::KdTree<pcl::PointXYZI>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZI>);
-        kd_tree->setInputCloud(pc_Ptr);
-
-        pcl::EuclideanClusterExtraction<pcl::PointXYZI> extractor;
-
-        extractor.setClusterTolerance(lidar.ec_cluster_params.cluster_tolerance);
-        extractor.setMinClusterSize(lidar.ec_cluster_params.min_cluster_size);
-        extractor.setMaxClusterSize(lidar.ec_cluster_params.max_cluster_size);
-        extractor.setSearchMethod(kd_tree);
-        extractor.setInputCloud(pc_Ptr);
-        extractor.extract(cluster_indices);
-
-        return cluster_indices;
-    }
-
     void Projector::pointcloudEuclideanClusterForYOLOV5()
     {
         for (auto &target : yolov5_targets)
         {
             std::vector<pcl::PointIndices> cluster_indices;
-            cluster_indices = pointcloudEuclideanCluster(target.pc_Ptr);
+            cluster_indices = pointcloudEuclideanCluster(target.pc_Ptr, lidar.ec_cluster_params.cluster_tolerance, lidar.ec_cluster_params.min_cluster_size, lidar.ec_cluster_params.max_cluster_size);
 
             // 选择聚类后最大的一块
             int max_cluster_size = 0;
@@ -253,27 +208,6 @@ namespace Projection
         return img;
     }
 
-    void Projector::pointcloudWeightCenterPositionCalculation()
-    {
-        for (auto &target : yolov5_targets)
-        {
-            double center_x = 0;
-            double center_y = 0;
-            double center_z = 0;
-            int count = 0;
-            for (auto point : target.points)
-            {
-                center_x += point.x;
-                center_y += point.y;
-                center_z += point.z;
-                count++;
-            }
-            target.position.x = center_x / count;
-            target.position.y = center_y / count;
-            target.position.z = center_z / count;
-        }
-    }
-
     void Projector::cloudInImagePublish(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
     {
         sensor_msgs::PointCloud2 cloud_publish;
@@ -302,12 +236,12 @@ namespace Projection
     // void Projector::boundingBoxArrayPublish()
     // {
     //     jsk_recognition_msgs::BoundingBoxArray boundingbox_array;
-    //     boundingbox_array.header.frame_id = "rslidar";
+    //     boundingbox_array.header.frame_id = lidar.FRAME_ID;
     //     int i = 0;
     //     for (auto target : yolov5_targets)
     //     {
     //         jsk_recognition_msgs::BoundingBox bb;
-    //         bb.header.frame_id = "rslidar"; // TODO
+    //         bb.header.frame_id = lidar.FRAME_ID;
     //         bb.header.stamp = ros::Time();
     //         bb.value = 0;
     //         bb.label = i;
@@ -336,8 +270,8 @@ namespace Projection
         imageCallback(img);
         pointcloudCallback(pc);
 
-        pointcloudPassThroughFilter(cloud_from_lidar); // 位置过滤
-        pointcloudImageFilter(cloud_from_lidar);       // 像素位置过滤
+        pointcloudPassThroughFilter(cloud_from_lidar, cloud_from_lidar, lidar.pc_region.xmin, lidar.pc_region.xmax, lidar.pc_region.ymin, lidar.pc_region.ymax, lidar.pc_region.zmin, lidar.pc_region.zmax);
+        pointcloudImageFilter(cloud_from_lidar);
         switch (mode)
         {
         case 0: // vinilla
@@ -349,13 +283,14 @@ namespace Projection
         {
             pointcloudYOLOV5BoundingBoxFilter(cloud_in_image);
             pointcloudEuclideanClusterForYOLOV5();
-            pointcloudWeightCenterPositionCalculation();
+            for (auto &target : yolov5_targets)
+                target.position = pointcloudWeightCenterPositionCalculation(target.points);
             dst = drawPictureFromYOLOV5(undistort_img);
             break;
         }
         case 2: // euclidean cluster
         {
-            auto cluster_indices = pointcloudEuclideanCluster(cloud_in_image);
+            auto cluster_indices = pointcloudEuclideanCluster(cloud_in_image, lidar.ec_cluster_params.cluster_tolerance, lidar.ec_cluster_params.min_cluster_size, lidar.ec_cluster_params.max_cluster_size);
             dst = drawPictureFromCluster(undistort_img, cluster_indices);
             break;
         }

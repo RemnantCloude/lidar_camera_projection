@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 21:57:14
+ * @LastEditTime: 2022-09-27 09:51:09
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -43,9 +43,6 @@
 
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <pcl/filters/passthrough.h>
-#include <pcl/features/moment_of_inertia_estimation.h>
-#include <pcl/segmentation/extract_clusters.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/transforms.h>
 
@@ -152,15 +149,11 @@ namespace Projection
 
         void initParamsFromYAML();
         void initClassMember();
-        void pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         void pointcloudImageFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         void pointcloudGroundFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
         void pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         void pointcloudEuclideanClusterForYOLOV5();
-        std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr);
-        void pointcloudWeightCenterPositionCalculation();
-        // void pointcloudWeightAABBPositionCalculation();
         cv::Mat drawPictureFromPointCloud(cv::Mat &img);
         cv::Mat drawPictureFromYOLOV5(cv::Mat &img);
         cv::Mat drawPictureFromCluster(cv::Mat &img, std::vector<pcl::PointIndices> cluster_indices);

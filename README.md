@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-26 22:08:57
+ * @LastEditTime: 2022-09-27 09:46:34
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -32,3 +32,4 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 2. 手动滤波改为pcl直通滤波，耗时从31ms降为22ms。
 3. 修复bug，调整类成员。
 4. 添加发布点云过滤数据。
+5. 分离点云处理函数。

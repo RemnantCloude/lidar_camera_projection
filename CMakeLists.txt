@@ -163,7 +163,7 @@ include_directories(
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
-add_executable(projector src/project.cpp src/algorithm.cpp)
+add_executable(projector src/project.cpp src/algorithm.cpp src/pointcloud_process.cpp)
 target_link_libraries(projector ${catkin_LIBRARIES}
                                 ${OpenCV_LIBS})
 add_dependencies(projector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})

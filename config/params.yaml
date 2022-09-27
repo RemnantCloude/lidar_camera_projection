@@ -1,8 +1,8 @@
 flag:
   if_show_time: false
 
-# 0 - vinilla, 1 - yolov5, 2 - euclideancluster
-mode: 0
+# 0 - vinilla, 1 - yolov5, 2 - euclideancluster, 3 - virtual point
+mode: 1
 
 camera:
   topic: /lbas_image
