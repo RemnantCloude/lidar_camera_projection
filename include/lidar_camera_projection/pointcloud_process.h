@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-26 22:24:25
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 09:51:23
+ * @LastEditTime: 2022-09-27 11:01:12
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/pointcloud_process.h
  * @Description:
  *
@@ -20,7 +20,9 @@
 
 void pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_out, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax);
 std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, double cluster_tolerance, int min_cluster_size, int max_cluster_size);
-pcl::PointXYZ pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> points);
-void pointcloudWeightAABBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in);
+void pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> points, pcl::PointXYZ &center);
+void pointcloudWeightCenterPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZ &center);
+void pointcloudAABBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZI &min_point_AABB, pcl::PointXYZI &max_point_AABB);
+// void pointcloudWeightOBBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in);
 
 #endif

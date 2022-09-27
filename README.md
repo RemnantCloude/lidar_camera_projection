@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 09:46:34
+ * @LastEditTime: 2022-09-27 14:49:18
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -13,11 +13,8 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 
 ## TEST
 
-3. 欧几里德聚类
-4. 标出3D框
-5. 2D框显示优化
-6. 投影颜色绘制
-7. 测试AABB和OBB的速度
+1. 2D框显示优化
+2. 投影颜色绘制
 
 ## TODO
 
@@ -33,3 +30,4 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 3. 修复bug，调整类成员。
 4. 添加发布点云过滤数据。
 5. 分离点云处理函数。
+6. 完成点云聚类投影逻辑。

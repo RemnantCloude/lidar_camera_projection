@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 09:51:09
+ * @LastEditTime: 2022-09-27 14:47:41
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -64,9 +64,9 @@ namespace Projection
             std::vector<double> intrinsicV;
             std::vector<double> projectionV;
             std::vector<double> distortionV;
-            cv::Mat intrinsicC;
-            cv::Mat projectionC;
-            cv::Mat distortionC;
+            cv::Mat intrinsicM;
+            cv::Mat projectionM;
+            cv::Mat distortionM;
         } camera;
 
         struct Lidar
@@ -116,11 +116,24 @@ namespace Projection
             std::vector<pcl::PointXYZI> points;
             std::vector<cv::Point> pts; // 投影点
             std::vector<float> depths;  // 距离
-            pcl::PointXYZ position;     // 几何中心点
+            pcl::PointXYZ center;       // 几何中心点
             pcl::PointXYZI min_point_AABB;
             pcl::PointXYZI max_point_AABB;
 
             YOLOV5Target()
+            {
+                this->pc_Ptr.reset(new pcl::PointCloud<pcl::PointXYZI>());
+            };
+        };
+
+        struct ECTarget
+        {
+            pcl::PointCloud<pcl::PointXYZI>::Ptr pc_Ptr;
+            pcl::PointXYZ center; // 几何中心点
+            pcl::PointXYZI min_point_AABB;
+            pcl::PointXYZI max_point_AABB;
+
+            ECTarget()
             {
                 this->pc_Ptr.reset(new pcl::PointCloud<pcl::PointXYZI>());
             };
@@ -143,6 +156,7 @@ namespace Projection
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_from_lidar;
         pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in_image;
         std::vector<YOLOV5Target> yolov5_targets; // YOLOV5检测到的目标
+        std::vector<ECTarget> ec_targets;
         // std::vector<Point> real_pointcloud;
         // std::vector<Point> real_pointcloud_no_ground;
         // std::vector<Point> virtual_pointcloud;
@@ -154,9 +168,10 @@ namespace Projection
         // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
         void pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);
         void pointcloudEuclideanClusterForYOLOV5();
+        void pointcloudEuclideanClusterFor3D();
         cv::Mat drawPictureFromPointCloud(cv::Mat &img);
         cv::Mat drawPictureFromYOLOV5(cv::Mat &img);
-        cv::Mat drawPictureFromCluster(cv::Mat &img, std::vector<pcl::PointIndices> cluster_indices);
+        cv::Mat drawPictureFrom3D(cv::Mat &img);
 
         void boundingBoxArrayPublish();
         void cloudInImagePublish(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud);

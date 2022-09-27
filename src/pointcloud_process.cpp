@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-26 22:21:52
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 09:51:35
+ * @LastEditTime: 2022-09-27 14:40:39
  * @FilePath: /test_ws/src/lidar_camera_projection/src/pointcloud_process.cpp
  * @Description:
  *
@@ -53,9 +53,8 @@ std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::P
     return cluster_indices;
 }
 
-pcl::PointXYZ pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> points)
+void pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> points, pcl::PointXYZ &center)
 {
-    pcl::PointXYZ position;
     double center_x = 0, center_y = 0, center_z = 0;
     int count = 0;
     for (auto point : points)
@@ -65,36 +64,46 @@ pcl::PointXYZ pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXY
         center_z += point.z;
         count++;
     }
-    position.x = center_x / count;
-    position.y = center_y / count;
-    position.z = center_z / count;
-
-    return position;
+    center.x = center_x / count;
+    center.y = center_y / count;
+    center.z = center_z / count;
 }
 
-void pointcloudWeightAABBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in)
+void pointcloudWeightCenterPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZ &center)
 {
-    // pcl::MomentOfInertiaEstimation<pcl::PointXYZ> feature_extractor;
-    // feature_extractor.setInputCloud(cloud_in);
-    // feature_extractor.compute();
-
-    // vector<float> moment_of_inertia;
-    // vector<float> eccentricity;
-    // pcl::PointXYZ min_point_AABB;
-    // pcl::PointXYZ max_point_AABB;
-    // pcl::PointXYZ min_point_OBB;
-    // pcl::PointXYZ max_point_OBB;
-    // pcl::PointXYZ position_OBB;
-    // Eigen::Matrix3f rotational_matrix_OBB;
-    // float major_value, middle_value, minor_value;
-    // Eigen::Vector3f major_vector, middle_vector, minor_vector;
-    // Eigen::Vector3f mass_center;
-
-    // feature_extractor.getMomentOfInertia(moment_of_inertia);
-    // feature_extractor.getEccentricity(eccentricity);
-    // feature_extractor.getAABB(min_point_AABB, max_point_AABB);
-    // feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
-    // feature_extractor.getEigenValues(major_value, middle_value, minor_value);
-    // feature_extractor.getEigenVectors(major_vector, middle_vector, minor_vector);
-    // feature_extractor.getMassCenter(mass_center);
+    double center_x = 0, center_y = 0, center_z = 0;
+    int count = 0;
+    for (auto point : cloud_in->points)
+    {
+        center_x += point.x;
+        center_y += point.y;
+        center_z += point.z;
+        count++;
+    }
+    center.x = center_x / count;
+    center.y = center_y / count;
+    center.z = center_z / count;
 }
+
+void pointcloudAABBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZI &min_point_AABB, pcl::PointXYZI &max_point_AABB)
+{
+    pcl::MomentOfInertiaEstimation<pcl::PointXYZI> feature_extractor;
+    feature_extractor.setInputCloud(cloud_in);
+    feature_extractor.compute();
+
+    feature_extractor.getAABB(min_point_AABB, max_point_AABB);
+}
+
+// void pointcloudWeightOBBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in)
+// {
+//     pcl::MomentOfInertiaEstimation<pcl::PointXYZI> feature_extractor;
+//     feature_extractor.setInputCloud(cloud_in);
+//     feature_extractor.compute();
+
+//     pcl::PointXYZ min_point_OBB;
+//     pcl::PointXYZ max_point_OBB;
+//     pcl::PointXYZ position_OBB;
+//     Eigen::Matrix3f rotational_matrix_OBB;
+
+//     feature_extractor.getOBB(min_point_OBB, max_point_OBB, position_OBB, rotational_matrix_OBB);
+// }
