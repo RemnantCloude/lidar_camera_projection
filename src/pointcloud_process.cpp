@@ -11,9 +11,9 @@
 
 #include "lidar_camera_projection/pointcloud_process.h"
 
-void pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_out, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax)
+void pointcloudPassThroughFilter(PointCloud::Ptr cloud_in, PointCloud::Ptr cloud_out, double xmin, double xmax, double ymin, double ymax, double zmin, double zmax)
 {
-    pcl::PassThrough<pcl::PointXYZI> passthrough;
+    pcl::PassThrough<PointType> passthrough;
     passthrough.setKeepOrganized(false);
 
     passthrough.setInputCloud(cloud_in);
@@ -32,16 +32,16 @@ void pointcloudPassThroughFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, 
     passthrough.filter(*cloud_out);
 }
 
-std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, double cluster_tolerance, int min_cluster_size, int max_cluster_size)
+std::vector<pcl::PointIndices> pointcloudEuclideanCluster(PointCloud::Ptr cloud_in, double cluster_tolerance, int min_cluster_size, int max_cluster_size)
 {
     std::vector<pcl::PointIndices> cluster_indices;
     if (cloud_in->points.empty() == true)
         return cluster_indices;
 
-    pcl::search::KdTree<pcl::PointXYZI>::Ptr kd_tree(new pcl::search::KdTree<pcl::PointXYZI>);
+    pcl::search::KdTree<PointType>::Ptr kd_tree(new pcl::search::KdTree<PointType>);
     kd_tree->setInputCloud(cloud_in);
 
-    pcl::EuclideanClusterExtraction<pcl::PointXYZI> extractor;
+    pcl::EuclideanClusterExtraction<PointType> extractor;
 
     extractor.setClusterTolerance(cluster_tolerance);
     extractor.setMinClusterSize(min_cluster_size);
@@ -53,7 +53,7 @@ std::vector<pcl::PointIndices> pointcloudEuclideanCluster(pcl::PointCloud<pcl::P
     return cluster_indices;
 }
 
-void pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> points, pcl::PointXYZ &center)
+void pointcloudWeightCenterPositionCalculation(std::vector<PointType> points, pcl::PointXYZ &center)
 {
     double center_x = 0, center_y = 0, center_z = 0;
     int count = 0;
@@ -69,7 +69,7 @@ void pointcloudWeightCenterPositionCalculation(std::vector<pcl::PointXYZI> point
     center.z = center_z / count;
 }
 
-void pointcloudWeightCenterPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZ &center)
+void pointcloudWeightCenterPositionCalculation(PointCloud::Ptr cloud_in, pcl::PointXYZ &center)
 {
     double center_x = 0, center_y = 0, center_z = 0;
     int count = 0;
@@ -85,18 +85,18 @@ void pointcloudWeightCenterPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::
     center.z = center_z / count;
 }
 
-void pointcloudAABBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in, pcl::PointXYZI &min_point_AABB, pcl::PointXYZI &max_point_AABB)
+void pointcloudAABBPositionCalculation(PointCloud::Ptr cloud_in, PointType &min_point_AABB, PointType &max_point_AABB)
 {
-    pcl::MomentOfInertiaEstimation<pcl::PointXYZI> feature_extractor;
+    pcl::MomentOfInertiaEstimation<PointType> feature_extractor;
     feature_extractor.setInputCloud(cloud_in);
     feature_extractor.compute();
 
     feature_extractor.getAABB(min_point_AABB, max_point_AABB);
 }
 
-// void pointcloudWeightOBBPositionCalculation(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_in)
+// void pointcloudWeightOBBPositionCalculation(PointCloud::Ptr cloud_in)
 // {
-//     pcl::MomentOfInertiaEstimation<pcl::PointXYZI> feature_extractor;
+//     pcl::MomentOfInertiaEstimation<PointType> feature_extractor;
 //     feature_extractor.setInputCloud(cloud_in);
 //     feature_extractor.compute();
 

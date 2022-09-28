@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 11:02:32
+ * @LastEditTime: 2022-09-28 14:44:41
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -12,6 +12,7 @@
 #ifndef _PROJECT_H_
 #define _PROJECT_H_
 
+#include "lidar_camera_projection/settings.h"
 #include "yolov5_ros_msgs/BoundingBox.h"
 #include "yolov5_ros_msgs/BoundingBoxes.h"
 
@@ -49,9 +50,6 @@
 #include <pcl/point_types.h>
 #include <pcl_conversions/pcl_conversions.h>
 #include <pcl_ros/transforms.h>
-
-typedef pcl::PointXYZI PointType;
-typedef pcl::PointCloud<PointType> PointCloud;
 
 namespace Projection
 {

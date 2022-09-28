@@ -3,11 +3,11 @@ flag:
   use_nuscenes: false
 
 # 0 - vinilla, 1 - yolov5, 2 - euclideancluster, 3 - virtual point
-mode: 1
+mode: 0
 
 camera:
   topic: /lbas_image
-  frame_id:
+  frame_id: ""
   image_width: 1440
   image_height: 1080
   intrinsic:

@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 11:03:43
+ * @LastEditTime: 2022-09-28 15:02:11
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -54,7 +54,7 @@ namespace Projection
         nh.param<double>("lidar/ec_extraction/cluster_tolerance", lidar.ec_cluster_params.cluster_tolerance, 0.1);
         nh.param<int>("lidar/ec_extraction/min_cluster_size", lidar.ec_cluster_params.min_cluster_size, 20);
         nh.param<int>("lidar/ec_extraction/max_cluster_size", lidar.ec_cluster_params.max_cluster_size, 25000);
-        // TODO
+
         nh.param<std::vector<double>>("transform/lidar2camera", transform.lidar2cameraV, std::vector<double>());
         transform.lidar2cameraM = cv::Mat(transform.lidar2cameraV).reshape(0, 4); // 4*4
 
@@ -129,7 +129,8 @@ namespace Projection
         // }
 
         pcl::fromROSMsg(*pc, *cloud_from_lidar);
-        pcl_ros::transformPointCloud(camera.FRAME_ID, *cloud_from_lidar, *cloud_from_lidar, tf_listener);
+        if (flag.USE_NUSCENES)
+            pcl_ros::transformPointCloud(camera.FRAME_ID, *cloud_from_lidar, *cloud_from_lidar, tf_listener);
     }
 
     void Projector::pointcloudImageFilter(PointCloud::Ptr cloud)
@@ -138,7 +139,7 @@ namespace Projection
 
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
+            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
 
             //像素位置过滤
             if (pt.x > 0 && pt.x <= camera.IMAGE_WIDTH && pt.y > 0 && pt.y <= camera.IMAGE_HEIGHT)
@@ -152,7 +153,7 @@ namespace Projection
     {
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
+            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
             for (auto &target : yolov5_targets)
             {
                 if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
@@ -220,7 +221,7 @@ namespace Projection
     {
         for (auto point : cloud_in_image->points)
         {
-            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
+            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
             cv::circle(img, pt, 3, cv::Scalar(0, 0, 255), -1);
         }
         return img;
@@ -259,7 +260,7 @@ namespace Projection
         {
             for (auto point : target.pc_Ptr->points)
             {
-                cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
+                cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
                 cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
             }
             green -= 30, red -= 30;
