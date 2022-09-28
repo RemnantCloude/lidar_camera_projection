@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 14:35:28
+ * @LastEditTime: 2022-09-28 11:03:43
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -14,6 +14,10 @@
 #include "lidar_camera_projection/pointcloud_process.h"
 
 #include <typeinfo>
+#include <Eigen/Core>
+#include <Eigen/Dense>
+
+#include <opencv2/core/eigen.hpp>
 
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -25,9 +29,11 @@ namespace Projection
     void Projector::initParamsFromYAML()
     {
         nh.param<int>("mode", mode, 0);
-        nh.param<bool>("flag/if_show_time", flag.IF_SHOW_TIME, true);
+        nh.param<bool>("flag/show_time", flag.SHOW_TIME, true);
+        nh.param<bool>("flag/use_nuscenes", flag.USE_NUSCENES, true);
 
         nh.param<std::string>("camera/topic", camera.TOPIC, "/lbas_image");
+        nh.param<std::string>("camera/frame_id", camera.FRAME_ID, "");
         nh.param<int>("camera/image_width", camera.IMAGE_WIDTH, 1440);
         nh.param<int>("camera/image_height", camera.IMAGE_HEIGHT, 1080);
         nh.param<std::vector<double>>("camera/intrinsic", camera.intrinsicV, std::vector<double>());
@@ -48,19 +54,22 @@ namespace Projection
         nh.param<double>("lidar/ec_extraction/cluster_tolerance", lidar.ec_cluster_params.cluster_tolerance, 0.1);
         nh.param<int>("lidar/ec_extraction/min_cluster_size", lidar.ec_cluster_params.min_cluster_size, 20);
         nh.param<int>("lidar/ec_extraction/max_cluster_size", lidar.ec_cluster_params.max_cluster_size, 25000);
-
+        // TODO
         nh.param<std::vector<double>>("transform/lidar2camera", transform.lidar2cameraV, std::vector<double>());
-        transform.lidar2cameraC = cv::Mat(transform.lidar2cameraV).reshape(0, 4); // 4*4
+        transform.lidar2cameraM = cv::Mat(transform.lidar2cameraV).reshape(0, 4); // 4*4
 
-        transform.lidar2imageC = camera.projectionM * transform.lidar2cameraC;
+        if (flag.USE_NUSCENES)
+            transform.lidar2imageM = camera.projectionM;
+        else
+            transform.lidar2imageM = camera.projectionM * transform.lidar2cameraM;
 
         ROS_INFO("Read initial param file successfully.");
     }
 
     void Projector::initClassMember()
     {
-        cloud_from_lidar = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
-        cloud_in_image = boost::make_shared<pcl::PointCloud<pcl::PointXYZI>>();
+        cloud_from_lidar = boost::make_shared<PointCloud>();
+        cloud_in_image = boost::make_shared<PointCloud>();
     }
 
     void Projector::imageCallback(const sensor_msgs::Image::ConstPtr &img)
@@ -82,21 +91,54 @@ namespace Projection
             ros::shutdown();
         }
         // 畸变矫正
-        cv::undistort(cv_ptr->image, undistort_img, camera.intrinsicM, camera.distortionM);
+        if (flag.USE_NUSCENES)
+            undistort_img = cv_ptr->image.clone();
+        else
+            cv::undistort(cv_ptr->image, undistort_img, camera.intrinsicM, camera.distortionM);
     }
 
     void Projector::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc)
     {
+        // if (flag.USE_NUSCENES)
+        // {
+        //     tf::StampedTransform transform_lidar;
+        //     tf::StampedTransform transform_cam;
+
+        //     tf_listener.lookupTransform("/lidar_top", "/base_link",
+        //                                 ros::Time(0), transform_lidar);
+        //     tf_listener.lookupTransform("/cam_front", "/base_link",
+        //                                 ros::Time(0), transform_cam);
+        //     Eigen::Matrix4f lidar2base;
+        //     Eigen::Matrix4f cam2base;
+        //     pcl_ros::transformAsMatrix(transform_lidar, lidar2base);
+        //     pcl_ros::transformAsMatrix(transform_cam, cam2base);
+        //     Eigen::Matrix4f cam2lidar = cam2base * lidar2base.inverse();
+
+        //     std::cout << "cam2lidar" << std::endl;
+        //     std::cout << cam2lidar << std::endl;
+
+        //     // cv::eigen2cv(cam2lidar, transform.lidar2cameraM);
+        //     cv::Mat temp(4, 4, cv::DataType<double>::type);
+        //     temp = (cv::Mat_<double>(4, 4) << cam2lidar(0, 0), cam2lidar(0, 1), cam2lidar(0, 2), cam2lidar(0, 3), cam2lidar(1, 0), cam2lidar(1, 1), cam2lidar(1, 2), cam2lidar(1, 3), cam2lidar(2, 0), cam2lidar(2, 1), cam2lidar(2, 2), cam2lidar(2, 3), cam2lidar(3, 0), cam2lidar(3, 1), cam2lidar(3, 2), cam2lidar(3, 3));
+        //     // ros::shutdown();
+        //     std::cout << "camera.projectionM" << std::endl;
+        //     std::cout << camera.projectionM << std::endl;
+        //     transform.lidar2imageM = camera.projectionM * temp;
+        //     std::cout << "transform.lidar2imageM" << std::endl;
+        //     std::cout << transform.lidar2imageM << std::endl;
+        // }
+
         pcl::fromROSMsg(*pc, *cloud_from_lidar);
+        pcl_ros::transformPointCloud(camera.FRAME_ID, *cloud_from_lidar, *cloud_from_lidar, tf_listener);
     }
 
-    void Projector::pointcloudImageFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    void Projector::pointcloudImageFilter(PointCloud::Ptr cloud)
     {
-        pcl::PointCloud<pcl::PointXYZI>::Ptr temp_cloud(new pcl::PointCloud<pcl::PointXYZI>);
+        PointCloud::Ptr temp_cloud(new PointCloud);
 
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
+            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
 
             //像素位置过滤
             if (pt.x > 0 && pt.x <= camera.IMAGE_WIDTH && pt.y > 0 && pt.y <= camera.IMAGE_HEIGHT)
@@ -106,11 +148,11 @@ namespace Projection
         cloud_in_image = temp_cloud;
     }
 
-    void Projector::pointcloudYOLOV5BoundingBoxFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    void Projector::pointcloudYOLOV5BoundingBoxFilter(PointCloud::Ptr cloud)
     {
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
+            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
             for (auto &target : yolov5_targets)
             {
                 if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
@@ -122,7 +164,7 @@ namespace Projection
         }
     }
 
-    void Projector::pointcloudGroundFilter(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    void Projector::pointcloudGroundFilter(PointCloud::Ptr cloud)
     {
     }
 
@@ -150,7 +192,7 @@ namespace Projection
                 }
             }
 
-            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZI>);
+            PointCloud::Ptr cloud_cluster(new PointCloud);
             for (auto it : max_cluster)
                 cloud_cluster->points.push_back(target.pc_Ptr->points[it]);
             target.pc_Ptr = cloud_cluster;
@@ -164,7 +206,7 @@ namespace Projection
         for (auto cluster_index : cluster_indices)
         {
             ECTarget target;
-            pcl::PointCloud<pcl::PointXYZI>::Ptr cloud_cluster(new pcl::PointCloud<pcl::PointXYZI>);
+            PointCloud::Ptr cloud_cluster(new PointCloud);
             for (auto it : cluster_index.indices)
                 cloud_cluster->points.push_back(cloud_in_image->points[it]);
             target.pc_Ptr = cloud_cluster;
@@ -178,7 +220,7 @@ namespace Projection
     {
         for (auto point : cloud_in_image->points)
         {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
+            cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
             cv::circle(img, pt, 3, cv::Scalar(0, 0, 255), -1);
         }
         return img;
@@ -217,7 +259,7 @@ namespace Projection
         {
             for (auto point : target.pc_Ptr->points)
             {
-                cv::Point pt = pointcloud2image(point, transform.lidar2imageC);
+                cv::Point pt = pointcloud2image<PointType>(point, transform.lidar2imageM);
                 cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
             }
             green -= 30, red -= 30;
@@ -225,7 +267,7 @@ namespace Projection
         return img;
     }
 
-    void Projector::cloudInImagePublish(pcl::PointCloud<pcl::PointXYZI>::Ptr cloud)
+    void Projector::cloudInImagePublish(PointCloud::Ptr cloud)
     {
         sensor_msgs::PointCloud2 cloud_publish;
         pcl::toROSMsg(*cloud, cloud_publish);

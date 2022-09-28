@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 14:49:18
+ * @LastEditTime: 2022-09-28 11:10:51
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -19,9 +19,8 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 ## TODO
 
 1. 优化代码，降低时间
-2. 订阅tf关系
-3. 考虑IMU
-4. XYZI->XYZIRT
+2. 考虑IMU
+3. XYZI->XYZIRT
 
 ## Changelog
 
@@ -31,3 +30,6 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 4. 添加发布点云过滤数据。
 5. 分离点云处理函数。
 6. 完成点云聚类投影逻辑。
+7. 修改函数模板。
+8. 完成tf订阅。
+9. 完成对nuscenes bag的正确投影。

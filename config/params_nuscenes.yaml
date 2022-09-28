@@ -1,53 +1,55 @@
 flag:
-  if_show_time: false
-  use_nuscenes: false
+  show_time: false
+  use_nuscenes: true
 
 # 0 - vinilla, 1 - yolov5, 2 - euclideancluster, 3 - virtual point
-mode: 1
+mode: 0
 
 camera:
-  topic: /lbas_image
-  frame_id:
-  image_width: 1440
-  image_height: 1080
+  topic: /cam_front/raw
+  frame_id: cam_front
+  image_width: 1600
+  image_height: 900
   intrinsic:
     [
-      2240.526817,
-      0.000000,
-      638.231713,
-      0.000000,
-      2232.334100,
-      572.292534,
-      0.000000,
-      0.000000,
-      1.000000,
+      1266.417203046554,
+      0.0,
+      816.2670197447984,
+      0.0,
+      1266.417203046554,
+      491.50706579294757,
+      0.0,
+      0.0,
+      1.0,
     ]
   projection:
     [
-      2199.676025,
+      1266.417203046554,
+      0.0,
+      816.2670197447984,
       0.000000,
-      630.104930,
       0.000000,
-      0.000000,
-      2211.820557,
-      571.834934,
+      1266.417203046554,
+      491.50706579294757,
       0.000000,
       0.000000,
       0.000000,
       1.000000,
       0.000000,
     ]
-  distortion: [-0.149787, 0.073690, -0.001176, -0.007231, 0.000000]
+  distortion: [0.000000, 0.000000, 0.000000, 0.000000, 0.000000]
 
 lidar:
-  topic: /rslidar_points
-  frame_id: rslidar
+  topic: /lidar_top
+  frame_id: lidar_top
+  # frame lidar right - x+, front - y+, up - z+
+  # frame camera right - x+, down - y+, front - z+
   filter:
-    xmin: 0.0
+    xmin: -100.0
     xmax: 100.0
     ymin: -100.0
     ymax: 100.0
-    zmin: -100.0
+    zmin: 0.0
     zmax: 100.0
   ec_extraction:
     cluster_tolerance: 0.1
