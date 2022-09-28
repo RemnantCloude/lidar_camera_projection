@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 15:07:39
+ * @LastEditTime: 2022-09-28 17:32:49
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -12,9 +12,6 @@
 A ROS package which projecting lidar's pointcloud to camera's image.
 
 ## TEST
-
-1. 2D框显示优化
-2. 投影颜色绘制
 
 ## TODO
 
@@ -42,3 +39,4 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 3. 完成tf订阅。
 4. 完成对nuscenes bag的正确投影。
 5. 添加Settings.h。
+6. 优化投影颜色。

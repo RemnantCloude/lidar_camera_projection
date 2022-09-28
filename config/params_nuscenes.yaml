@@ -55,6 +55,7 @@ lidar:
     cluster_tolerance: 0.1
     min_cluster_size: 20
     max_cluster_size: 25000
+  max_distance: 100.0
 
 transform:
   lidar2camera:

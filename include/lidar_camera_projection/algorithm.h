@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-12 16:43:25
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 14:46:52
+ * @LastEditTime: 2022-09-28 16:47:02
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/algorithm.h
  * @Description:
  *
@@ -21,5 +21,6 @@
 
 float euclideanDistance(PointType point);
 cv::Point pointcloud2image(PointType point, cv::Mat transform);
+cv::Scalar HSV2RGB(cv::Scalar scalar);
 
 #endif

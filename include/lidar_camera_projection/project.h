@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 14:44:41
+ * @LastEditTime: 2022-09-28 17:34:55
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -80,6 +80,7 @@ namespace Projection
         {
             std::string TOPIC;
             std::string FRAME_ID;
+            double max_distance;
 
             struct PointcloudFilterParams
             {
@@ -121,9 +122,8 @@ namespace Projection
 
             PointCloud::Ptr pc_Ptr;
             std::vector<PointType> points;
-            std::vector<cv::Point> pts; // 投影点
-            std::vector<float> depths;  // 距离
-            pcl::PointXYZ center;       // 几何中心点
+            std::vector<float> depths; // 距离
+            pcl::PointXYZ center;      // 几何中心点
             PointType min_point_AABB;
             PointType max_point_AABB;
 
@@ -178,9 +178,10 @@ namespace Projection
         void pointcloudYOLOV5BoundingBoxFilter(PointCloud::Ptr cloud);
         void pointcloudEuclideanClusterForYOLOV5();
         void pointcloudEuclideanClusterFor3D();
-        cv::Mat drawPictureFromPointCloud(cv::Mat &img);
-        cv::Mat drawPictureFromYOLOV5(cv::Mat &img);
-        cv::Mat drawPictureFrom3D(cv::Mat &img);
+        void drawPoint(cv::Mat &img, PointType point);
+        void drawPictureFromPointCloud(cv::Mat &img);
+        void drawPictureFromYOLOV5(cv::Mat &img);
+        void drawPictureFrom3D(cv::Mat &img);
 
         void boundingBoxArrayPublish();
         void cloudInImagePublish(PointCloud::Ptr cloud);

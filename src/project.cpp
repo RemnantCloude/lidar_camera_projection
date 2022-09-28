@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 15:02:11
+ * @LastEditTime: 2022-09-28 17:31:50
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -54,6 +54,7 @@ namespace Projection
         nh.param<double>("lidar/ec_extraction/cluster_tolerance", lidar.ec_cluster_params.cluster_tolerance, 0.1);
         nh.param<int>("lidar/ec_extraction/min_cluster_size", lidar.ec_cluster_params.min_cluster_size, 20);
         nh.param<int>("lidar/ec_extraction/max_cluster_size", lidar.ec_cluster_params.max_cluster_size, 25000);
+        nh.param<double>("lidar/max_distance", lidar.max_distance, 50.0);
 
         nh.param<std::vector<double>>("transform/lidar2camera", transform.lidar2cameraV, std::vector<double>());
         transform.lidar2cameraM = cv::Mat(transform.lidar2cameraV).reshape(0, 4); // 4*4
@@ -157,10 +158,7 @@ namespace Projection
             for (auto &target : yolov5_targets)
             {
                 if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
-                {
                     target.points.push_back(point);
-                    target.pts.push_back(pt);
-                }
             }
         }
     }
@@ -217,17 +215,26 @@ namespace Projection
         }
     }
 
-    cv::Mat Projector::drawPictureFromPointCloud(cv::Mat &img)
+    void Projector::drawPoint(cv::Mat &img, PointType point)
     {
-        for (auto point : cloud_in_image->points)
-        {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
-            cv::circle(img, pt, 3, cv::Scalar(0, 0, 255), -1);
-        }
-        return img;
+        cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
+        float depth = euclideanDistance(point);
+
+        float H = std::min(360.0, 360.0 * depth / lidar.max_distance);
+        float V = 1;
+        float S = 1;
+
+        cv::Scalar color = HSV2RGB(cv::Scalar(H, S, V));
+        cv::circle(img, pt, 3, color, -1);
     }
 
-    cv::Mat Projector::drawPictureFromYOLOV5(cv::Mat &img)
+    void Projector::drawPictureFromPointCloud(cv::Mat &img)
+    {
+        for (auto point : cloud_in_image->points)
+            drawPoint(img, point);
+    }
+
+    void Projector::drawPictureFromYOLOV5(cv::Mat &img)
     {
         for (auto target : yolov5_targets)
         {
@@ -239,21 +246,12 @@ namespace Projection
             cv::putText(img, "y:" + std::to_string(center.y), cv::Point(box.xmin, box.ymin + 40), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
             cv::putText(img, "z:" + std::to_string(center.z), cv::Point(box.xmin, box.ymin + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
 
-            for (auto pt : target.pts)
-            {
-                // float valDenth = std::sqrt((it->x) * (it->x) + (it->y) * (it->y) + (it->z) * (it->z)); //TODO depth
-                // float maxVal = 10.0;
-                // int red = std::min(255, (int)it->intensity * 4);
-
-                // int green = std::min(255, (int)(255 * (1 - abs((valDenth - maxVal) / maxVal))));
-                // cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
-                cv::circle(img, pt, 3, cv::Scalar(0, 0, 255), -1);
-            }
+            for (auto point : target.points)
+                drawPoint(img, point);
         }
-        return img;
     }
 
-    cv::Mat Projector::drawPictureFrom3D(cv::Mat &img)
+    void Projector::drawPictureFrom3D(cv::Mat &img)
     {
         int green = 255, red = 255;
         for (auto target : ec_targets)
@@ -265,7 +263,6 @@ namespace Projection
             }
             green -= 30, red -= 30;
         }
-        return img;
     }
 
     void Projector::cloudInImagePublish(PointCloud::Ptr cloud)
@@ -361,52 +358,43 @@ namespace Projection
 
     void Projector::projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc)
     {
-        cv::Mat dst;
-
         imageCallback(img);
         pointcloudCallback(pc);
 
-        pointcloudPassThroughFilter(cloud_from_lidar, cloud_from_lidar, lidar.pc_region.xmin, lidar.pc_region.xmax, lidar.pc_region.ymin, lidar.pc_region.ymax, lidar.pc_region.zmin, lidar.pc_region.zmax);
+        pointcloudPassThroughFilter(cloud_from_lidar, cloud_from_lidar,
+                                    lidar.pc_region.xmin, lidar.pc_region.xmax,
+                                    lidar.pc_region.ymin, lidar.pc_region.ymax,
+                                    lidar.pc_region.zmin, lidar.pc_region.zmax);
         pointcloudImageFilter(cloud_from_lidar);
         switch (mode)
         {
         case 0: // vinilla
-        {
-            dst = drawPictureFromPointCloud(undistort_img);
+            drawPictureFromPointCloud(undistort_img);
             break;
-        }
         case 1: // yolov5
-        {
             pointcloudYOLOV5BoundingBoxFilter(cloud_in_image);
             pointcloudEuclideanClusterForYOLOV5();
             for (auto &target : yolov5_targets)
                 pointcloudWeightCenterPositionCalculation(target.points, target.center);
-            dst = drawPictureFromYOLOV5(undistort_img);
+            drawPictureFromYOLOV5(undistort_img);
             break;
-        }
         case 2: // euclidean cluster
-        {
             pointcloudEuclideanClusterFor3D();
             boundingBoxArrayPublish();
-            dst = drawPictureFrom3D(undistort_img);
+            drawPictureFrom3D(undistort_img);
             break;
-        }
         case 3: // virtual point
-        {
             // pointcloudGroundFilter(cloud_from_lidar); // 地面点过滤
             // virtualPointCloudGenerate(undistort_img, real_pointcloud, virtual_pointcloud);
             break;
-        }
         default:
-        {
             ROS_ERROR("Wrong mode setting");
         }
-        }
 
-        projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", dst).toImageMsg());
+        projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", undistort_img).toImageMsg());
         cloudInImagePublish(cloud_in_image);
 
-        cv::imshow("projection", dst);
+        cv::imshow("projection", undistort_img);
         cv::waitKey(1);
     }
 
