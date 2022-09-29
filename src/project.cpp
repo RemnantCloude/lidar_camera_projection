@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 17:31:50
+ * @LastEditTime: 2022-09-29 10:49:30
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
@@ -100,38 +100,27 @@ namespace Projection
 
     void Projector::pointcloudCallback(const sensor_msgs::PointCloud2::ConstPtr &pc)
     {
+        if (flag.USE_NUSCENES)
+        {
+            sensor_msgs::PointCloud2 pointcloud;
+            pcl_ros::transformPointCloud(camera.FRAME_ID, *pc, pointcloud, tf_listener);
+            pcl::fromROSMsg(pointcloud, *cloud_from_lidar);
+        }
+        else
+        {
+            pcl::fromROSMsg(*pc, *cloud_from_lidar);
+        }
         // if (flag.USE_NUSCENES)
         // {
-        //     tf::StampedTransform transform_lidar;
-        //     tf::StampedTransform transform_cam;
+        //     pcl_ros::transformPointCloud(camera.FRAME_ID, *cloud_from_lidar, *cloud_from_lidar, tf_listener);
+        //     tf::StampedTransform transform_lidar2cam;
 
-        //     tf_listener.lookupTransform("/lidar_top", "/base_link",
-        //                                 ros::Time(0), transform_lidar);
-        //     tf_listener.lookupTransform("/cam_front", "/base_link",
-        //                                 ros::Time(0), transform_cam);
-        //     Eigen::Matrix4f lidar2base;
-        //     Eigen::Matrix4f cam2base;
-        //     pcl_ros::transformAsMatrix(transform_lidar, lidar2base);
-        //     pcl_ros::transformAsMatrix(transform_cam, cam2base);
-        //     Eigen::Matrix4f cam2lidar = cam2base * lidar2base.inverse();
-
-        //     std::cout << "cam2lidar" << std::endl;
-        //     std::cout << cam2lidar << std::endl;
-
-        //     // cv::eigen2cv(cam2lidar, transform.lidar2cameraM);
-        //     cv::Mat temp(4, 4, cv::DataType<double>::type);
-        //     temp = (cv::Mat_<double>(4, 4) << cam2lidar(0, 0), cam2lidar(0, 1), cam2lidar(0, 2), cam2lidar(0, 3), cam2lidar(1, 0), cam2lidar(1, 1), cam2lidar(1, 2), cam2lidar(1, 3), cam2lidar(2, 0), cam2lidar(2, 1), cam2lidar(2, 2), cam2lidar(2, 3), cam2lidar(3, 0), cam2lidar(3, 1), cam2lidar(3, 2), cam2lidar(3, 3));
-        //     // ros::shutdown();
-        //     std::cout << "camera.projectionM" << std::endl;
-        //     std::cout << camera.projectionM << std::endl;
-        //     transform.lidar2imageM = camera.projectionM * temp;
-        //     std::cout << "transform.lidar2imageM" << std::endl;
-        //     std::cout << transform.lidar2imageM << std::endl;
+        //     tf_listener.lookupTransform("/lidar_top", "/cam_front",
+        //                                 ros::Time(0), transform_lidar2cam);
+        //     Eigen::Matrix4f lidar2cam;
+        //     pcl_ros::transformAsMatrix(transform_lidar2cam, lidar2cam);
+        //     pcl::transformPointCloud(*cloud_from_lidar, *cloud_from_lidar, lidar2cam);
         // }
-
-        pcl::fromROSMsg(*pc, *cloud_from_lidar);
-        if (flag.USE_NUSCENES)
-            pcl_ros::transformPointCloud(camera.FRAME_ID, *cloud_from_lidar, *cloud_from_lidar, tf_listener);
     }
 
     void Projector::pointcloudImageFilter(PointCloud::Ptr cloud)

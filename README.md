@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 17:32:49
+ * @LastEditTime: 2022-09-29 10:39:22
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -17,7 +17,6 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 
 1. 优化代码，降低时间
 2. 考虑IMU
-3. XYZI->XYZIRT
 
 ## Changelog
 
@@ -40,3 +39,7 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 4. 完成对nuscenes bag的正确投影。
 5. 添加Settings.h。
 6. 优化投影颜色。
+
+### 2022-9-28
+
+1. 增加对XYZIR点云类型的支持。
