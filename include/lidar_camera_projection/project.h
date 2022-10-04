@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-28 17:34:55
+ * @LastEditTime: 2022-09-30 16:05:42
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
  * @Description:
  *
@@ -23,6 +23,11 @@
 
 #include <ros/ros.h>
 #include <ros/package.h>
+
+#include <pcl/point_cloud.h>
+#include <pcl/point_types.h>
+#include <pcl_conversions/pcl_conversions.h>
+#include <pcl_ros/transforms.h>
 
 #include <opencv2/core.hpp>
 #include <opencv2/opencv.hpp>
@@ -46,11 +51,6 @@
 #include <tf/message_filter.h>
 #include <tf/transform_listener.h>
 
-#include <pcl/point_cloud.h>
-#include <pcl/point_types.h>
-#include <pcl_conversions/pcl_conversions.h>
-#include <pcl_ros/transforms.h>
-
 namespace Projection
 {
     class Projector
@@ -59,6 +59,7 @@ namespace Projection
         struct Flag
         {
             bool SHOW_TIME;
+            bool SHOW_IMAGE;
             bool USE_NUSCENES;
         } flag;
 
@@ -80,6 +81,7 @@ namespace Projection
         {
             std::string TOPIC;
             std::string FRAME_ID;
+            int RINGS;
             double max_distance;
 
             struct PointcloudFilterParams
@@ -164,20 +166,25 @@ namespace Projection
         cv::Mat undistort_img;
         PointCloud::Ptr cloud_from_lidar;
         PointCloud::Ptr cloud_in_image;
+        PointCloud::Ptr cloud_in_image_no_ground;
+        std::vector<std::vector<PointType>> points_in_ring;
         std::vector<YOLOV5Target> yolov5_targets; // YOLOV5检测到的目标
         std::vector<ECTarget> ec_targets;
-        // std::vector<Point> real_pointcloud;
-        // std::vector<Point> real_pointcloud_no_ground;
         // std::vector<Point> virtual_pointcloud;
 
         void initParamsFromYAML();
         void initClassMember();
+
         void pointcloudImageFilter(PointCloud::Ptr cloud);
-        void pointcloudGroundFilter(PointCloud::Ptr cloud);
-        // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
         void pointcloudYOLOV5BoundingBoxFilter(PointCloud::Ptr cloud);
+        void pointcloudGroundFilter(PointCloud::Ptr cloud);
+
         void pointcloudEuclideanClusterForYOLOV5();
-        void pointcloudEuclideanClusterFor3D();
+        void pointcloudEuclideanClusterFor3D(PointCloud::Ptr cloud);
+        void pointcloudRingCluster(PointCloud::Ptr cloud);
+
+        // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
+
         void drawPoint(cv::Mat &img, PointType point);
         void drawPictureFromPointCloud(cv::Mat &img);
         void drawPictureFromYOLOV5(cv::Mat &img);

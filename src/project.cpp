@@ -2,22 +2,19 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-29 10:49:30
+ * @LastEditTime: 2022-10-04 09:33:59
  * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
  * @Description:
  *
  * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
  */
 
+#include "lidar_camera_projection/pointcloud_process.h"
 #include "lidar_camera_projection/project.h"
 #include "lidar_camera_projection/algorithm.h"
-#include "lidar_camera_projection/pointcloud_process.h"
 
-#include <typeinfo>
 #include <Eigen/Core>
 #include <Eigen/Dense>
-
-#include <opencv2/core/eigen.hpp>
 
 #include <geometry_msgs/Point.h>
 #include <visualization_msgs/MarkerArray.h>
@@ -30,6 +27,7 @@ namespace Projection
     {
         nh.param<int>("mode", mode, 0);
         nh.param<bool>("flag/show_time", flag.SHOW_TIME, true);
+        nh.param<bool>("flag/show_image", flag.SHOW_IMAGE, true);
         nh.param<bool>("flag/use_nuscenes", flag.USE_NUSCENES, true);
 
         nh.param<std::string>("camera/topic", camera.TOPIC, "/lbas_image");
@@ -45,6 +43,7 @@ namespace Projection
 
         nh.param<std::string>("lidar/topic", lidar.TOPIC, "/rslidar_points");
         nh.param<std::string>("lidar/frame_id", lidar.FRAME_ID, "rslidar");
+        nh.param<int>("lidar/rings", lidar.RINGS, 32);
         nh.param<double>("lidar/filter/xmin", lidar.pc_region.xmin, 0.0);
         nh.param<double>("lidar/filter/xmax", lidar.pc_region.xmax, 10.0);
         nh.param<double>("lidar/filter/ymin", lidar.pc_region.ymin, -10.0);
@@ -129,7 +128,7 @@ namespace Projection
 
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
+            cv::Point pt = point2pixel(point, transform.lidar2imageM);
 
             //像素位置过滤
             if (pt.x > 0 && pt.x <= camera.IMAGE_WIDTH && pt.y > 0 && pt.y <= camera.IMAGE_HEIGHT)
@@ -143,7 +142,7 @@ namespace Projection
     {
         for (auto point : cloud->points)
         {
-            cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
+            cv::Point pt = point2pixel(point, transform.lidar2imageM);
             for (auto &target : yolov5_targets)
             {
                 if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
@@ -164,8 +163,11 @@ namespace Projection
     {
         for (auto &target : yolov5_targets)
         {
-            std::vector<pcl::PointIndices> cluster_indices;
-            cluster_indices = pointcloudEuclideanCluster(target.pc_Ptr, lidar.ec_cluster_params.cluster_tolerance, lidar.ec_cluster_params.min_cluster_size, lidar.ec_cluster_params.max_cluster_size);
+            auto cluster_indices = pointcloudEuclideanCluster(
+                target.pc_Ptr,
+                lidar.ec_cluster_params.cluster_tolerance,
+                lidar.ec_cluster_params.min_cluster_size,
+                lidar.ec_cluster_params.max_cluster_size);
 
             // 选择聚类后最大的一块
             int max_cluster_size = 0;
@@ -187,16 +189,20 @@ namespace Projection
         }
     }
 
-    void Projector::pointcloudEuclideanClusterFor3D()
+    void Projector::pointcloudEuclideanClusterFor3D(PointCloud::Ptr cloud)
     {
         std::vector<ECTarget>().swap(ec_targets);
-        auto cluster_indices = pointcloudEuclideanCluster(cloud_in_image, lidar.ec_cluster_params.cluster_tolerance, lidar.ec_cluster_params.min_cluster_size, lidar.ec_cluster_params.max_cluster_size);
+        auto cluster_indices = pointcloudEuclideanCluster(
+            cloud,
+            lidar.ec_cluster_params.cluster_tolerance,
+            lidar.ec_cluster_params.min_cluster_size,
+            lidar.ec_cluster_params.max_cluster_size);
         for (auto cluster_index : cluster_indices)
         {
             ECTarget target;
             PointCloud::Ptr cloud_cluster(new PointCloud);
             for (auto it : cluster_index.indices)
-                cloud_cluster->points.push_back(cloud_in_image->points[it]);
+                cloud_cluster->points.push_back(cloud->points[it]);
             target.pc_Ptr = cloud_cluster;
             pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
             pointcloudAABBPositionCalculation(target.pc_Ptr, target.min_point_AABB, target.max_point_AABB);
@@ -204,9 +210,16 @@ namespace Projection
         }
     }
 
+    void Projector::pointcloudRingCluster(PointCloud::Ptr cloud)
+    {
+        for (auto point : cloud->points)
+        {
+        }
+    }
+
     void Projector::drawPoint(cv::Mat &img, PointType point)
     {
-        cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
+        cv::Point pt = point2pixel(point, transform.lidar2imageM);
         float depth = euclideanDistance(point);
 
         float H = std::min(360.0, 360.0 * depth / lidar.max_distance);
@@ -247,7 +260,7 @@ namespace Projection
         {
             for (auto point : target.pc_Ptr->points)
             {
-                cv::Point pt = pointcloud2image(point, transform.lidar2imageM);
+                cv::Point pt = point2pixel(point, transform.lidar2imageM);
                 cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
             }
             green -= 30, red -= 30;
@@ -258,7 +271,10 @@ namespace Projection
     {
         sensor_msgs::PointCloud2 cloud_publish;
         pcl::toROSMsg(*cloud, cloud_publish);
-        cloud_publish.header.frame_id = lidar.FRAME_ID;
+        if (flag.USE_NUSCENES)
+            cloud_publish.header.frame_id = camera.FRAME_ID;
+        else
+            cloud_publish.header.frame_id = lidar.FRAME_ID;
         cloud_in_image_pub.publish(cloud_publish);
     }
 
@@ -350,10 +366,11 @@ namespace Projection
         imageCallback(img);
         pointcloudCallback(pc);
 
-        pointcloudPassThroughFilter(cloud_from_lidar, cloud_from_lidar,
-                                    lidar.pc_region.xmin, lidar.pc_region.xmax,
-                                    lidar.pc_region.ymin, lidar.pc_region.ymax,
-                                    lidar.pc_region.zmin, lidar.pc_region.zmax);
+        pointcloudPassThroughFilter(
+            cloud_from_lidar, cloud_from_lidar,
+            lidar.pc_region.xmin, lidar.pc_region.xmax,
+            lidar.pc_region.ymin, lidar.pc_region.ymax,
+            lidar.pc_region.zmin, lidar.pc_region.zmax);
         pointcloudImageFilter(cloud_from_lidar);
         switch (mode)
         {
@@ -368,12 +385,13 @@ namespace Projection
             drawPictureFromYOLOV5(undistort_img);
             break;
         case 2: // euclidean cluster
-            pointcloudEuclideanClusterFor3D();
+            pointcloudEuclideanClusterFor3D(cloud_in_image);
             boundingBoxArrayPublish();
             drawPictureFrom3D(undistort_img);
             break;
         case 3: // virtual point
-            // pointcloudGroundFilter(cloud_from_lidar); // 地面点过滤
+            pointcloudGroundFilter(cloud_in_image);
+            pointcloudRingCluster(cloud_in_image);
             // virtualPointCloudGenerate(undistort_img, real_pointcloud, virtual_pointcloud);
             break;
         default:
@@ -383,8 +401,11 @@ namespace Projection
         projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", undistort_img).toImageMsg());
         cloudInImagePublish(cloud_in_image);
 
-        cv::imshow("projection", undistort_img);
-        cv::waitKey(1);
+        if (flag.SHOW_IMAGE)
+        {
+            cv::imshow("projection", undistort_img);
+            cv::waitKey(1);
+        }
     }
 
     void Projector::yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes)

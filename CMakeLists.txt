@@ -162,10 +162,20 @@ include_directories(
 # target_link_libraries(${PROJECT_NAME}_node
 #   ${catkin_LIBRARIES}
 # )
-add_executable(projector src/project.cpp src/algorithm.cpp src/pointcloud_process.cpp)
+add_executable(projector src/project.cpp src/algorithm.cpp)
 target_link_libraries(projector ${catkin_LIBRARIES}
                                 ${OpenCV_LIBS})
 add_dependencies(projector ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
+# Ring Ground Filter
+add_executable(ring_ground_filter src/ring_ground_filter.cpp
+)
+
+target_link_libraries(ring_ground_filter ${catkin_LIBRARIES}
+                                ${OpenCV_LIBS})
+
+add_dependencies(ring_ground_filter ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
+
 #############
 ## Install ##
 #############

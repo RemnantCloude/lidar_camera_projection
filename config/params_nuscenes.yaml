@@ -1,5 +1,6 @@
 flag:
   show_time: false
+  show_image: true
   use_nuscenes: true
 
 # 0 - vinilla, 1 - yolov5, 2 - euclideancluster, 3 - virtual point
@@ -42,6 +43,7 @@ camera:
 lidar:
   topic: /lidar_top
   frame_id: lidar_top
+  rings: 32
   # frame lidar right - x+, front - y+, up - z+
   # frame camera right - x+, down - y+, front - z+
   filter:
