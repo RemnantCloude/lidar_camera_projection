@@ -2,15 +2,15 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-10-04 09:33:59
- * @FilePath: /test_ws/src/lidar_camera_projection/src/project.cpp
+ * @LastEditTime: 2022-10-04 11:20:47
+ * @FilePath: /test_ws/src/lidar_camera_projection/src/projector.cpp
  * @Description:
  *
  * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
  */
 
 #include "lidar_camera_projection/pointcloud_process.h"
-#include "lidar_camera_projection/project.h"
+#include "lidar_camera_projection/projector.h"
 #include "lidar_camera_projection/algorithm.h"
 
 #include <Eigen/Core>
@@ -143,10 +143,10 @@ namespace Projection
         for (auto point : cloud->points)
         {
             cv::Point pt = point2pixel(point, transform.lidar2imageM);
-            for (auto &target : yolov5_targets)
+            for (auto &target : targets)
             {
                 if (pt.x > target.boundingbox.xmin && pt.x < target.boundingbox.xmax && pt.y > target.boundingbox.ymin && pt.y < target.boundingbox.ymax)
-                    target.points.push_back(point);
+                    target.pc_Ptr->points.push_back(point);
             }
         }
     }
@@ -161,7 +161,7 @@ namespace Projection
 
     void Projector::pointcloudEuclideanClusterForYOLOV5()
     {
-        for (auto &target : yolov5_targets)
+        for (auto &target : targets)
         {
             auto cluster_indices = pointcloudEuclideanCluster(
                 target.pc_Ptr,
@@ -191,7 +191,7 @@ namespace Projection
 
     void Projector::pointcloudEuclideanClusterFor3D(PointCloud::Ptr cloud)
     {
-        std::vector<ECTarget>().swap(ec_targets);
+        std::vector<Target>().swap(targets);
         auto cluster_indices = pointcloudEuclideanCluster(
             cloud,
             lidar.ec_cluster_params.cluster_tolerance,
@@ -199,14 +199,14 @@ namespace Projection
             lidar.ec_cluster_params.max_cluster_size);
         for (auto cluster_index : cluster_indices)
         {
-            ECTarget target;
+            Target target;
             PointCloud::Ptr cloud_cluster(new PointCloud);
             for (auto it : cluster_index.indices)
                 cloud_cluster->points.push_back(cloud->points[it]);
             target.pc_Ptr = cloud_cluster;
             pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
             pointcloudAABBPositionCalculation(target.pc_Ptr, target.min_point_AABB, target.max_point_AABB);
-            ec_targets.push_back(target);
+            targets.push_back(target);
         }
     }
 
@@ -238,7 +238,7 @@ namespace Projection
 
     void Projector::drawPictureFromYOLOV5(cv::Mat &img)
     {
-        for (auto target : yolov5_targets)
+        for (auto target : targets)
         {
             auto box = target.boundingbox;
             auto center = target.center;
@@ -248,7 +248,7 @@ namespace Projection
             cv::putText(img, "y:" + std::to_string(center.y), cv::Point(box.xmin, box.ymin + 40), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
             cv::putText(img, "z:" + std::to_string(center.z), cv::Point(box.xmin, box.ymin + 60), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
 
-            for (auto point : target.points)
+            for (auto point : target.pc_Ptr->points)
                 drawPoint(img, point);
         }
     }
@@ -256,7 +256,7 @@ namespace Projection
     void Projector::drawPictureFrom3D(cv::Mat &img)
     {
         int green = 255, red = 255;
-        for (auto target : ec_targets)
+        for (auto target : targets)
         {
             for (auto point : target.pc_Ptr->points)
             {
@@ -282,7 +282,7 @@ namespace Projection
     // {
     //     geometry_msgs::Point position;
     //     float max_probability = 0.0;
-    //     for (auto target : yolov5_targets)
+    //     for (auto target : targets)
     //     {
     //         if (target.boundingbox.probability > max_probability)
     //         {
@@ -312,7 +312,7 @@ namespace Projection
         marker.action = visualization_msgs::Marker::ADD;
 
         int marker_id = 0;
-        for (auto target : ec_targets)
+        for (auto target : targets)
         {
             marker.id = marker_id;
             marker.color.r = 0.1 * marker_id;
@@ -336,7 +336,7 @@ namespace Projection
     //     jsk_recognition_msgs::BoundingBoxArray boundingbox_array;
     //     boundingbox_array.header.frame_id = lidar.FRAME_ID;
     //     int i = 0;
-    //     for (auto target : yolov5_targets)
+    //     for (auto target : targets)
     //     {
     //         jsk_recognition_msgs::BoundingBox bb;
     //         bb.header.frame_id = lidar.FRAME_ID;
@@ -380,8 +380,8 @@ namespace Projection
         case 1: // yolov5
             pointcloudYOLOV5BoundingBoxFilter(cloud_in_image);
             pointcloudEuclideanClusterForYOLOV5();
-            for (auto &target : yolov5_targets)
-                pointcloudWeightCenterPositionCalculation(target.points, target.center);
+            for (auto &target : targets)
+                pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
             drawPictureFromYOLOV5(undistort_img);
             break;
         case 2: // euclidean cluster
@@ -410,13 +410,13 @@ namespace Projection
 
     void Projector::yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes)
     {
-        //清空yolov5_targets
-        std::vector<YOLOV5Target>().swap(yolov5_targets);
+        //清空targets
+        std::vector<Target>().swap(targets);
 
         auto temp = boxes->bounding_boxes;
         for (auto t : temp)
         {
-            YOLOV5Target target;
+            Target target;
             target.boundingbox.num = t.num;
             target.boundingbox.probability = t.probability;
             target.boundingbox.xmax = t.xmax;
@@ -424,7 +424,7 @@ namespace Projection
             target.boundingbox.ymax = t.ymax;
             target.boundingbox.ymin = t.ymin;
             target.boundingbox.Class = t.Class;
-            yolov5_targets.push_back(target);
+            targets.push_back(target);
         }
     }
 

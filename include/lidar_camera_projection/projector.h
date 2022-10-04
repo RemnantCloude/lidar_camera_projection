@@ -2,8 +2,8 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-30 16:05:42
- * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/project.h
+ * @LastEditTime: 2022-10-04 11:24:11
+ * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/projector.h
  * @Description:
  *
  * Copyright (c) 2022 by RemnantCloude remnantcloude@gmail.com, All Rights Reserved.
@@ -109,9 +109,9 @@ namespace Projection
             cv::Mat lidar2imageM;
         } transform;
 
-        struct YOLOV5Target
+        struct Target
         {
-            struct YOLOV5BoundingBox
+            struct BoundingBox
             {
                 float probability;
                 int xmin;
@@ -120,29 +120,14 @@ namespace Projection
                 int ymax;
                 int num;
                 std::string Class;
-            } boundingbox; // yolov5识别框
+            } boundingbox;
 
             PointCloud::Ptr pc_Ptr;
-            std::vector<PointType> points;
-            std::vector<float> depths; // 距离
-            pcl::PointXYZ center;      // 几何中心点
+            pcl::PointXYZ center;
             PointType min_point_AABB;
             PointType max_point_AABB;
 
-            YOLOV5Target()
-            {
-                this->pc_Ptr.reset(new PointCloud());
-            };
-        };
-
-        struct ECTarget
-        {
-            PointCloud::Ptr pc_Ptr;
-            pcl::PointXYZ center; // 几何中心点
-            PointType min_point_AABB;
-            PointType max_point_AABB;
-
-            ECTarget()
+            Target()
             {
                 this->pc_Ptr.reset(new PointCloud());
             };
@@ -168,8 +153,7 @@ namespace Projection
         PointCloud::Ptr cloud_in_image;
         PointCloud::Ptr cloud_in_image_no_ground;
         std::vector<std::vector<PointType>> points_in_ring;
-        std::vector<YOLOV5Target> yolov5_targets; // YOLOV5检测到的目标
-        std::vector<ECTarget> ec_targets;
+        std::vector<Target> targets;
         // std::vector<Point> virtual_pointcloud;
 
         void initParamsFromYAML();
