@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-12 16:43:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-30 16:13:40
+ * @LastEditTime: 2022-10-04 16:19:29
  * @FilePath: /test_ws/src/lidar_camera_projection/src/algorithm.cpp
  * @Description:
  *
@@ -10,6 +10,8 @@
  */
 
 #include "lidar_camera_projection/algorithm.h"
+
+#include <limits.h>
 
 /**
  * @description:
@@ -62,4 +64,21 @@ cv::Scalar HSV2RGB(cv::Scalar scalar)
     }
 
     return cv::Scalar(R * 255, G * 255, B * 255);
+}
+
+void minRect(std::vector<cv::Point> pts, cv::Point &min, cv::Point &max)
+{
+    min.x = min.y = INT_MAX;
+    max.x = max.y = 0;
+    for (auto pt : pts)
+    {
+        if (pt.x < min.x)
+            min.x = pt.x;
+        if (pt.x > max.x)
+            max.x = pt.x;
+        if (pt.y < min.y)
+            min.y = pt.y;
+        if (pt.y > max.y)
+            max.y = pt.y;
+    }
 }

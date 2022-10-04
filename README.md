@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-29 10:39:22
+ * @LastEditTime: 2022-10-04 17:00:40
  * @FilePath: /test_ws/src/lidar_camera_projection/README.md
  * @Description: 
  * 
@@ -43,3 +43,7 @@ A ROS package which projecting lidar's pointcloud to camera's image.
 ### 2022-9-28
 
 1. 增加对XYZIR点云类型的支持。
+
+### 2022-10-4
+
+1. 完成欧式聚类绘制Boundingbox。

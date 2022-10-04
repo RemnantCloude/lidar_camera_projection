@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-10-04 11:20:47
+ * @LastEditTime: 2022-10-04 17:21:27
  * @FilePath: /test_ws/src/lidar_camera_projection/src/projector.cpp
  * @Description:
  *
@@ -64,6 +64,7 @@ namespace Projection
             transform.lidar2imageM = camera.projectionM * transform.lidar2cameraM;
 
         ROS_INFO("Read initial param file successfully.");
+        ROS_INFO("Mode:%d", mode);
     }
 
     void Projector::initClassMember()
@@ -72,7 +73,13 @@ namespace Projection
         cloud_in_image = boost::make_shared<PointCloud>();
     }
 
-    void Projector::imageCallback(const sensor_msgs::Image::ConstPtr &img)
+    void Projector::refreshTargets()
+    {
+        std::vector<Target>().swap(targets);
+    }
+
+    void
+    Projector::imageCallback(const sensor_msgs::Image::ConstPtr &img)
     {
         cv_bridge::CvImagePtr cv_ptr;
         try
@@ -159,7 +166,7 @@ namespace Projection
     // {
     // }
 
-    void Projector::pointcloudEuclideanClusterForYOLOV5()
+    void Projector::pointcloudEuclideanClusterForYOLOV5(std::vector<Target> &targets)
     {
         for (auto &target : targets)
         {
@@ -191,7 +198,8 @@ namespace Projection
 
     void Projector::pointcloudEuclideanClusterFor3D(PointCloud::Ptr cloud)
     {
-        std::vector<Target>().swap(targets);
+        refreshTargets();
+
         auto cluster_indices = pointcloudEuclideanCluster(
             cloud,
             lidar.ec_cluster_params.cluster_tolerance,
@@ -204,16 +212,32 @@ namespace Projection
             for (auto it : cluster_index.indices)
                 cloud_cluster->points.push_back(cloud->points[it]);
             target.pc_Ptr = cloud_cluster;
-            pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
-            pointcloudAABBPositionCalculation(target.pc_Ptr, target.min_point_AABB, target.max_point_AABB);
+            // pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
+            // pointcloudAABBPositionCalculation(target.pc_Ptr, target.min_point_AABB, target.max_point_AABB);
             targets.push_back(target);
         }
     }
 
     void Projector::pointcloudRingCluster(PointCloud::Ptr cloud)
     {
-        for (auto point : cloud->points)
+    }
+
+    void Projector::imageBoundingBoxCalculation(std::vector<Target> &targets)
+    {
+        for (auto &target : targets)
         {
+            std::vector<cv::Point> pts;
+            for (auto point : target.pc_Ptr->points)
+            {
+                cv::Point pt = point2pixel(point, transform.lidar2imageM);
+                pts.push_back(pt);
+            }
+            cv::Point min, max;
+            minRect(pts, min, max);
+            target.boundingbox.xmin = min.x;
+            target.boundingbox.ymin = min.y;
+            target.boundingbox.xmax = max.x;
+            target.boundingbox.ymax = max.y;
         }
     }
 
@@ -255,15 +279,12 @@ namespace Projection
 
     void Projector::drawPictureFrom3D(cv::Mat &img)
     {
-        int green = 255, red = 255;
         for (auto target : targets)
         {
+            auto box = target.boundingbox;
+            cv::rectangle(img, cv::Rect(cv::Point(box.xmax, box.ymax), cv::Point(box.xmin, box.ymin)), cv::Scalar(255, 255, 255));
             for (auto point : target.pc_Ptr->points)
-            {
-                cv::Point pt = point2pixel(point, transform.lidar2imageM);
-                cv::circle(img, pt, 3, cv::Scalar(0, green, red), -1);
-            }
-            green -= 30, red -= 30;
+                drawPoint(img, point);
         }
     }
 
@@ -276,6 +297,11 @@ namespace Projection
         else
             cloud_publish.header.frame_id = lidar.FRAME_ID;
         cloud_in_image_pub.publish(cloud_publish);
+    }
+
+    void Projector::projectedImagePublish(cv::Mat img)
+    {
+        projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", img).toImageMsg());
     }
 
     // void Projector::boundingBoxesPositionPublish()
@@ -292,10 +318,10 @@ namespace Projection
     //             max_probability = target.boundingbox.probability;
     //         }
     //     }
-    //     lidar_boundingBoxesPosition_pub.publish(position);
+    //     pointcloud_boundingBoxPosition_pub.publish(position);
     // }
 
-    void Projector::boundingBoxArrayPublish()
+    void Projector::pointcloudBoundingBoxArrayPublish()
     {
         visualization_msgs::MarkerArray marker_array;
         visualization_msgs::Marker marker;
@@ -328,10 +354,28 @@ namespace Projection
             marker_array.markers.push_back(marker);
             ++marker_id;
         }
-        lidar_boundingBoxesArray_pub.publish(marker_array);
+        pointcloud_boundingBoxArray_pub.publish(marker_array);
     }
 
-    // void Projector::boundingBoxArrayPublish()
+    void Projector::imageBoundingBoxArrayPublish()
+    {
+        yolov5_ros_msgs::BoundingBoxes boxes;
+        boxes.header.frame_id = camera.TOPIC;
+        boxes.header.stamp = ros::Time::now();
+
+        for (auto target : targets)
+        {
+            yolov5_ros_msgs::BoundingBox box;
+            box.xmin = target.boundingbox.xmin;
+            box.xmax = target.boundingbox.xmax;
+            box.ymin = target.boundingbox.ymin;
+            box.ymax = target.boundingbox.ymax;
+            boxes.bounding_boxes.push_back(box);
+        }
+        image_boundingBoxes_pub.publish(boxes);
+    }
+
+    // void Projector::pointcloudBoundingBoxArrayPublish()
     // {
     //     jsk_recognition_msgs::BoundingBoxArray boundingbox_array;
     //     boundingbox_array.header.frame_id = lidar.FRAME_ID;
@@ -358,7 +402,7 @@ namespace Projection
     //         boundingbox_array.boxes.push_back(bb);
     //         i++;
     //     }
-    //     lidar_boundingBoxesArray_pub.publish(boundingbox_array);
+    //     pointcloud_boundingBoxArray_pub.publish(boundingbox_array);
     // }
 
     void Projector::projectionCallback(const sensor_msgs::Image::ConstPtr &img, const sensor_msgs::PointCloud2::ConstPtr &pc)
@@ -375,30 +419,42 @@ namespace Projection
         switch (mode)
         {
         case 0: // vinilla
+        {
             drawPictureFromPointCloud(undistort_img);
             break;
+        }
         case 1: // yolov5
+        {
             pointcloudYOLOV5BoundingBoxFilter(cloud_in_image);
-            pointcloudEuclideanClusterForYOLOV5();
+            pointcloudEuclideanClusterForYOLOV5(targets);
             for (auto &target : targets)
                 pointcloudWeightCenterPositionCalculation(target.pc_Ptr, target.center);
             drawPictureFromYOLOV5(undistort_img);
             break;
+        }
         case 2: // euclidean cluster
+        {
             pointcloudEuclideanClusterFor3D(cloud_in_image);
-            boundingBoxArrayPublish();
+            imageBoundingBoxCalculation(targets);
+            // pointcloudBoundingBoxArrayPublish();
+            imageBoundingBoxArrayPublish();
             drawPictureFrom3D(undistort_img);
             break;
+        }
         case 3: // virtual point
+        {
             pointcloudGroundFilter(cloud_in_image);
             pointcloudRingCluster(cloud_in_image);
             // virtualPointCloudGenerate(undistort_img, real_pointcloud, virtual_pointcloud);
             break;
+        }
         default:
+        {
             ROS_ERROR("Wrong mode setting");
         }
+        }
 
-        projected_image_pub.publish(cv_bridge::CvImage(std_msgs::Header(), "bgr8", undistort_img).toImageMsg());
+        projectedImagePublish(undistort_img);
         cloudInImagePublish(cloud_in_image);
 
         if (flag.SHOW_IMAGE)
@@ -410,8 +466,7 @@ namespace Projection
 
     void Projector::yolov5Callback(const yolov5_ros_msgs::BoundingBoxes::ConstPtr &boxes)
     {
-        //清空targets
-        std::vector<Target>().swap(targets);
+        refreshTargets();
 
         auto temp = boxes->bounding_boxes;
         for (auto t : temp)
@@ -448,8 +503,9 @@ namespace Projection
         image_transport::ImageTransport imageTransport(nh);
         projected_image_pub = imageTransport.advertise("/projector/projected_image", 1);
         cloud_in_image_pub = nh.advertise<sensor_msgs::PointCloud2>("/projector/cloud_in_image", 1);
-        lidar_boundingBoxesPosition_pub = nh.advertise<geometry_msgs::Point>("/projector/position", 1);
-        lidar_boundingBoxesArray_pub = nh.advertise<visualization_msgs::MarkerArray>("/projector/bounding_boxes", 1);
+        pointcloud_boundingBoxPosition_pub = nh.advertise<geometry_msgs::Point>("/projector/position", 1);
+        pointcloud_boundingBoxArray_pub = nh.advertise<visualization_msgs::MarkerArray>("/projector/pointcloud_boundingbox_array", 1);
+        image_boundingBoxes_pub = nh.advertise<yolov5_ros_msgs::BoundingBoxes>("/projector/image_boundingbox_array", 1);
 
         ROS_INFO("Projector init completely.");
 

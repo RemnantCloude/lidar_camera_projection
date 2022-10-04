@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-10 09:45:11
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-10-04 11:24:11
+ * @LastEditTime: 2022-10-04 17:21:02
  * @FilePath: /test_ws/src/lidar_camera_projection/include/lidar_camera_projection/projector.h
  * @Description:
  *
@@ -143,8 +143,9 @@ namespace Projection
 
         image_transport::Publisher projected_image_pub;
         ros::Publisher cloud_in_image_pub;
-        ros::Publisher lidar_boundingBoxesPosition_pub;
-        ros::Publisher lidar_boundingBoxesArray_pub;
+        ros::Publisher pointcloud_boundingBoxPosition_pub;
+        ros::Publisher pointcloud_boundingBoxArray_pub;
+        ros::Publisher image_boundingBoxes_pub;
 
         tf::TransformListener tf_listener;
 
@@ -159,13 +160,17 @@ namespace Projection
         void initParamsFromYAML();
         void initClassMember();
 
+        void refreshTargets();
+
         void pointcloudImageFilter(PointCloud::Ptr cloud);
         void pointcloudYOLOV5BoundingBoxFilter(PointCloud::Ptr cloud);
         void pointcloudGroundFilter(PointCloud::Ptr cloud);
 
-        void pointcloudEuclideanClusterForYOLOV5();
+        void pointcloudEuclideanClusterForYOLOV5(std::vector<Target> &targets);
         void pointcloudEuclideanClusterFor3D(PointCloud::Ptr cloud);
         void pointcloudRingCluster(PointCloud::Ptr cloud);
+
+        void imageBoundingBoxCalculation(std::vector<Target> &targets);
 
         // void virtualPointCloudGenerate(cv::Mat image, std::vector<Point> real_pc, std::vector<Point> vitual_pc);
 
@@ -174,7 +179,9 @@ namespace Projection
         void drawPictureFromYOLOV5(cv::Mat &img);
         void drawPictureFrom3D(cv::Mat &img);
 
-        void boundingBoxArrayPublish();
+        void pointcloudBoundingBoxArrayPublish();
+        void imageBoundingBoxArrayPublish();
+        void projectedImagePublish(cv::Mat img);
         void cloudInImagePublish(PointCloud::Ptr cloud);
 
         void imageCallback(const sensor_msgs::Image::ConstPtr &img);

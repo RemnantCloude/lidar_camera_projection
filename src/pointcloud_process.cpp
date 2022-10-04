@@ -2,7 +2,7 @@
  * @Author: RemnantCloude remnantcloude@gmail.com
  * @Date: 2022-09-26 22:21:52
  * @LastEditors: RemnantCloude remnantcloude@gmail.com
- * @LastEditTime: 2022-09-27 14:40:39
+ * @LastEditTime: 2022-10-04 16:53:59
  * @FilePath: /test_ws/src/lidar_camera_projection/src/pointcloud_process.cpp
  * @Description:
  *
@@ -85,6 +85,7 @@ void pointcloudWeightCenterPositionCalculation(PointCloud::Ptr cloud_in, pcl::Po
     center.z = center_z / count;
 }
 
+// high cost, 150ms
 void pointcloudAABBPositionCalculation(PointCloud::Ptr cloud_in, PointType &min_point_AABB, PointType &max_point_AABB)
 {
     pcl::MomentOfInertiaEstimation<PointType> feature_extractor;
